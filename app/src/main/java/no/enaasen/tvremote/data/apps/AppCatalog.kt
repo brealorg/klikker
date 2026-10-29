@@ -22,7 +22,9 @@ object AppCatalog {
 
     /** Whether the app is worth offering as a shortcut, unlike launchers and system screens. */
     fun isSuggestible(packageName: String): Boolean =
-        packageName !in NOT_APPS && !packageName.startsWith("com.android.")
+        packageName !in HOME_SCREENS && packageName !in NOT_APPS && !packageName.startsWith("com.android.")
+
+    fun isHomeScreen(packageName: String): Boolean = packageName in HOME_SCREENS
 
     /** "com.example.player" becomes "Example"; generic segments like "com" or "tv" are skipped. */
     internal fun derivedLabel(packageName: String): String {
@@ -72,16 +74,19 @@ object AppCatalog {
         "org.smarttube.beta" to listOf("org.smarttube.stable"),
     )
 
+    private val HOME_SCREENS = setOf(
+        "com.google.android.apps.tv.launcherx",
+        "com.google.android.leanbacklauncher",
+        "com.google.android.tvlauncher",
+        "com.spocky.projengmenu",
+    )
+
     private val NOT_APPS = setOf(
         "com.google.android.apps.tv.dreamx",
-        "com.google.android.apps.tv.launcherx",
         "com.google.android.backdrop",
         "com.google.android.katniss",
-        "com.google.android.leanbacklauncher",
         "com.google.android.tv.remote.service",
-        "com.google.android.tvlauncher",
         "com.google.android.tvrecommendations",
-        "com.spocky.projengmenu",
     )
 
     private val GENERIC_SEGMENTS = setOf(

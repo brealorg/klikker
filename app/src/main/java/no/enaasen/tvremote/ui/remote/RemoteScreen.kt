@@ -4,8 +4,6 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +29,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
@@ -49,12 +46,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,7 +57,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -72,7 +65,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.DecimalFormat
-import kotlinx.coroutines.delay
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.AppShortcut
@@ -219,7 +211,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 title = {
                     TvTitle(
                         tv = tv,
-                        statusText = connection.statusText(uiState.apps.pinned),
+                        statusText = connection.statusText(),
                         onClick = { showTvSheet = true },
                     )
                 },
@@ -259,6 +251,12 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 onPair = { actions.onPairTv(tv) },
                 onDetails = actions.onOpenDiagnostics,
             )
+            status?.currentAppPackage?.let { packageName ->
+                NowPlaying(
+                    packageName = packageName,
+                    label = uiState.apps.pinned.find { it.packageName == packageName }?.label ?: AppCatalog.label(packageName),
+                )
+            }
             val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay() ?: status?.toVolumeDisplay()
             VolumeKnob(
                 volume = volume,
@@ -352,10 +350,9 @@ private fun TvTitle(tv: Tv, statusText: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ConnectionState.statusText(shortcuts: List<AppShortcut>): String = when (this) {
-    is ConnectionState.Connected -> status.currentAppPackage
-        ?.let { pkg -> shortcuts.find { it.packageName == pkg }?.label ?: AppCatalog.label(pkg) }
-        ?: stringResource(R.string.status_connected)
+private fun ConnectionState.statusText(): String = when (this) {
+    // The open app is shown big below, see NowPlaying.
+    is ConnectionState.Connected -> stringResource(R.string.status_connected)
     is ConnectionState.Unreachable -> stringResource(R.string.status_unreachable)
     is ConnectionState.PairingRequired -> stringResource(R.string.status_pairing_required)
     else -> stringResource(R.string.status_connecting)
@@ -491,7 +488,7 @@ private fun TvSheet(
         tvs.forEach { tv ->
             val isSelected = tv.id == selected.id
             ListItem(
-                headlineContent = { Text(tv.name) },
+                onClick = { onSelect(tv) },
                 supportingContent = { Text(tv.host) },
                 leadingContent = {
                     Icon(painterResource(if (isSelected) R.drawable.ic_tv_fill1 else R.drawable.ic_tv), contentDescription = null)
@@ -507,16 +504,14 @@ private fun TvSheet(
                     }
                 },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                modifier = Modifier.clickable { onSelect(tv) },
-            )
+            ) { Text(tv.name) }
         }
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         ListItem(
-            headlineContent = { Text(stringResource(R.string.add_tv)) },
+            onClick = onAddTv,
             leadingContent = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            modifier = Modifier.clickable(onClick = onAddTv),
-        )
+        ) { Text(stringResource(R.string.add_tv)) }
         Spacer(Modifier.height(16.dp))
     }
 
@@ -550,19 +545,18 @@ private fun ShortcutSheet(
         Column(Modifier.verticalScroll(rememberScrollState())) {
             SheetTitle(stringResource(R.string.shortcuts))
             ListItem(
-                headlineContent = { Text(stringResource(R.string.add_current_app)) },
+                onClick = { adding = true },
+                enabled = canAddCurrent,
                 supportingContent = {
                     Text(currentAppPackage?.let(AppCatalog::label) ?: stringResource(R.string.add_current_app_hint))
                 },
                 leadingContent = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                modifier = Modifier.clickable(enabled = canAddCurrent) { adding = true },
-            )
+            ) { Text(stringResource(R.string.add_current_app)) }
             if (apps.pinned.isNotEmpty()) {
                 SheetSectionHeader(stringResource(R.string.shortcuts_pinned))
                 apps.pinned.forEach { shortcut ->
                     ListItem(
-                        headlineContent = { Text(shortcut.label) },
                         supportingContent = { Text(shortcut.packageName) },
                         trailingContent = {
                             IconButton(onClick = { onRemove(shortcut) }) {
@@ -570,7 +564,7 @@ private fun ShortcutSheet(
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    )
+                    ) { Text(shortcut.label) }
                 }
             }
             SheetSectionHeader(stringResource(R.string.shortcuts_seen))
@@ -584,7 +578,6 @@ private fun ShortcutSheet(
             }
             apps.suggested.forEach { app ->
                 ListItem(
-                    headlineContent = { Text(app.label) },
                     supportingContent = { Text(app.packageName) },
                     trailingContent = {
                         IconButton(onClick = { onAdd(app.label, app.packageName) }) {
@@ -592,7 +585,7 @@ private fun ShortcutSheet(
                         }
                     },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                )
+                ) { Text(app.label) }
             }
             Spacer(Modifier.height(16.dp))
         }

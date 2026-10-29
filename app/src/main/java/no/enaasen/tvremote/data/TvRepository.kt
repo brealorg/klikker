@@ -268,12 +268,14 @@ class TvRepository @Inject constructor(
     }
 
     private suspend fun recordSeenApp(tvId: String, packageName: String) {
-        if (!AppCatalog.isSuggestible(packageName)) return
         var isNew = false
         dataStore.updateData { data ->
             val index = data.tvsList.indexOfFirst { it.id == tvId }
             if (index < 0) return@updateData data
             val tv = data.tvsList[index]
+            if (!AppCatalog.isSuggestible(packageName)) {
+                return@updateData data.copy { tvs[index] = tv.copy { lastAppPackage = packageName } }
+            }
             isNew = tv.seenAppsList.none { it.packageName == packageName }
             val seen = seenApp {
                 this.packageName = packageName
@@ -282,6 +284,7 @@ class TvRepository @Inject constructor(
             val others = tv.seenAppsList.filter { it.packageName != packageName }
             data.copy {
                 tvs[index] = tv.copy {
+                    lastAppPackage = packageName
                     seenApps.clear()
                     seenApps += (listOf(seen) + others).take(MAX_SEEN_APPS)
                 }
@@ -317,7 +320,9 @@ class TvRepository @Inject constructor(
                         }
                         launch {
                             combine(session.isReady, session.status) { ready, status ->
-                                if (ready) ConnectionState.Connected(tv, status) else ConnectionState.Connecting(tv)
+                                // Until the TV reports a switch, assume the app it last reported.
+                                val known = status.copy(currentAppPackage = status.currentAppPackage ?: saved.lastAppPackage.ifEmpty { null })
+                                if (ready) ConnectionState.Connected(tv, known) else ConnectionState.Connecting(tv)
                             }.collect { state ->
                                 if (state is ConnectionState.Connected && connectedAt == 0L) {
                                     connectedAt = SystemClock.elapsedRealtime()
@@ -405,6 +410,7 @@ private fun UserData.pinnedShortcuts(tv: SavedTv): List<AppShortcut> = when {
 private fun SavedTv.withoutApps(): SavedTv = copy {
     shortcuts.clear()
     seenApps.clear()
+    clearLastAppPackage()
 }
 
 private fun SavedSettings.toModel() = RemoteSettings(

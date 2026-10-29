@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +73,7 @@ internal fun AppTile(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     // Each app keeps its own shape, which springs into a circle while pressed.
-    val polygon = TileShapes[packageName.hashCode().absoluteValue % TileShapes.size]
+    val polygon = appPolygon(packageName)
     val morph = remember(polygon) { Morph(polygon, MaterialShapes.Circle) }
     val progress by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
@@ -130,26 +131,10 @@ private fun TileLabel(label: String) {
     )
 }
 
-/**
- * The app's icon, taken from the same app or its phone edition installed on
- * this phone; there is no way to get it from the TV. Otherwise its initial.
- */
+/** The app's icon in [shape], or its initial when the phone has no icon for it. */
 @Composable
-private fun AppIcon(label: String, packageName: String, shape: Shape, size: Dp = IconSize) {
-    val context = LocalContext.current
-    val sizePx = with(LocalDensity.current) { size.toPx().roundToInt() }
-    val icon by produceState<ImageBitmap?>(null, packageName, sizePx) {
-        value = withContext(Dispatchers.IO) {
-            AppCatalog.iconPackages(packageName).firstNotNullOfOrNull { candidate ->
-                try {
-                    context.packageManager.getApplicationIcon(candidate).toUnmaskedBitmap(sizePx).asImageBitmap()
-                } catch (_: PackageManager.NameNotFoundException) {
-                    null
-                }
-            }
-        }
-    }
-    val current = icon
+internal fun AppIcon(label: String, packageName: String, shape: Shape, size: Dp = IconSize) {
+    val current = rememberAppIcon(packageName, size)
     if (current != null) {
         // Decorative: the tile's label names the app.
         // A hairline keeps the shape visible on icons as dark as the background.
@@ -164,6 +149,32 @@ private fun AppIcon(label: String, packageName: String, shape: Shape, size: Dp =
     } else {
         InitialIcon(label, shape, size)
     }
+}
+
+/** The shape an app is shown in; the same app always gets the same one. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+internal fun appPolygon(packageName: String): RoundedPolygon = TileShapes[packageName.hashCode().absoluteValue % TileShapes.size]
+
+/**
+ * The app's icon without its mask, taken from the same app or its phone
+ * edition installed on this phone; there is no way to get it from the TV.
+ */
+@Composable
+internal fun rememberAppIcon(packageName: String, size: Dp): ImageBitmap? {
+    val context = LocalContext.current
+    val sizePx = with(LocalDensity.current) { size.toPx().roundToInt() }
+    val icon by produceState<ImageBitmap?>(null, packageName, sizePx) {
+        value = withContext(Dispatchers.IO) {
+            AppCatalog.iconPackages(packageName).firstNotNullOfOrNull { candidate ->
+                try {
+                    context.packageManager.getApplicationIcon(candidate).toUnmaskedBitmap(sizePx).asImageBitmap()
+                } catch (_: PackageManager.NameNotFoundException) {
+                    null
+                }
+            }
+        }
+    }
+    return icon
 }
 
 @Composable

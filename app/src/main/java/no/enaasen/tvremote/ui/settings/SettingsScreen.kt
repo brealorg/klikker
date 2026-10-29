@@ -1,33 +1,36 @@
 package no.enaasen.tvremote.ui.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,7 +39,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,7 +51,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
@@ -133,111 +134,149 @@ internal fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            SectionHeader(stringResource(R.string.settings_touchpad))
-            SensitivitySetting(settings.swipeSensitivity, onSwipeSensitivityChange)
-            SwitchSetting(
-                title = stringResource(R.string.settings_hold_repeat),
-                description = stringResource(R.string.settings_hold_repeat_description),
-                checked = settings.holdToRepeat,
-                onCheckedChange = onHoldToRepeatChange,
+            SettingsGroup(
+                title = stringResource(R.string.settings_touchpad),
+                { shapes -> SensitivitySetting(settings.swipeSensitivity, shapes, onSwipeSensitivityChange) },
+                { shapes ->
+                    SwitchSetting(
+                        title = stringResource(R.string.settings_hold_repeat),
+                        description = stringResource(R.string.settings_hold_repeat_description),
+                        checked = settings.holdToRepeat,
+                        shapes = shapes,
+                        onCheckedChange = onHoldToRepeatChange,
+                    )
+                },
+                { shapes ->
+                    HoldRepeatSpeedSetting(
+                        speed = settings.holdRepeatSpeed,
+                        enabled = settings.holdToRepeat,
+                        shapes = shapes,
+                        onChange = onHoldRepeatSpeedChange,
+                    )
+                },
+                { shapes ->
+                    SwitchSetting(
+                        title = stringResource(R.string.settings_fling),
+                        description = stringResource(R.string.settings_fling_description),
+                        checked = settings.flingEnabled,
+                        shapes = shapes,
+                        onCheckedChange = onFlingEnabledChange,
+                    )
+                },
             )
-            HoldRepeatSpeedSetting(
-                speed = settings.holdRepeatSpeed,
-                enabled = settings.holdToRepeat,
-                onChange = onHoldRepeatSpeedChange,
+            SettingsGroup(
+                title = stringResource(R.string.settings_general),
+                { shapes ->
+                    SwitchSetting(
+                        title = stringResource(R.string.settings_keep_connected),
+                        description = stringResource(R.string.settings_keep_connected_description),
+                        checked = settings.keepConnectedInBackground,
+                        shapes = shapes,
+                        onCheckedChange = onKeepConnectedChange,
+                    )
+                },
+                { shapes ->
+                    SwitchSetting(
+                        title = stringResource(R.string.settings_volume_keys),
+                        description = stringResource(R.string.settings_volume_keys_description),
+                        checked = settings.volumeKeysControlTv,
+                        shapes = shapes,
+                        onCheckedChange = onVolumeKeysChange,
+                    )
+                },
+                { shapes ->
+                    SwitchSetting(
+                        title = stringResource(R.string.settings_show_app_names),
+                        description = stringResource(R.string.settings_show_app_names_description),
+                        checked = settings.showAppNames,
+                        shapes = shapes,
+                        onCheckedChange = onShowAppNamesChange,
+                    )
+                },
             )
-            SwitchSetting(
-                title = stringResource(R.string.settings_fling),
-                description = stringResource(R.string.settings_fling_description),
-                checked = settings.flingEnabled,
-                onCheckedChange = onFlingEnabledChange,
+            SettingsGroup(
+                title = stringResource(R.string.settings_receiver),
+                { shapes ->
+                    ReceiverHostSetting(
+                        host = settings.receiverHost,
+                        connected = receiverConnected,
+                        check = receiverCheck,
+                        discoveredReceivers = discoveredReceivers,
+                        shapes = shapes,
+                        onSave = onReceiverHostChange,
+                        onCheckReset = onReceiverCheckReset,
+                    )
+                },
+                { shapes ->
+                    ReceiverVolumeStepSetting(
+                        step = settings.receiverVolumeStep,
+                        enabled = settings.receiverHost.isNotBlank(),
+                        shapes = shapes,
+                        onChange = onReceiverVolumeStepChange,
+                    )
+                },
             )
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            SectionHeader(stringResource(R.string.settings_general))
-            SwitchSetting(
-                title = stringResource(R.string.settings_keep_connected),
-                description = stringResource(R.string.settings_keep_connected_description),
-                checked = settings.keepConnectedInBackground,
-                onCheckedChange = onKeepConnectedChange,
+            SettingsGroup(
+                title = stringResource(R.string.settings_troubleshooting),
+                { shapes ->
+                    SegmentedListItem(
+                        onClick = onOpenDiagnostics,
+                        shapes = shapes,
+        colors = settingsItemColors(),
+                        supportingContent = { Text(stringResource(R.string.diagnostics_description)) },
+                    ) { Text(stringResource(R.string.diagnostics)) }
+                },
             )
-            SwitchSetting(
-                title = stringResource(R.string.settings_volume_keys),
-                description = stringResource(R.string.settings_volume_keys_description),
-                checked = settings.volumeKeysControlTv,
-                onCheckedChange = onVolumeKeysChange,
-            )
-            SwitchSetting(
-                title = stringResource(R.string.settings_show_app_names),
-                description = stringResource(R.string.settings_show_app_names_description),
-                checked = settings.showAppNames,
-                onCheckedChange = onShowAppNamesChange,
-            )
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            SectionHeader(stringResource(R.string.settings_receiver))
-            ReceiverHostSetting(
-                host = settings.receiverHost,
-                connected = receiverConnected,
-                check = receiverCheck,
-                discoveredReceivers = discoveredReceivers,
-                onSave = onReceiverHostChange,
-                onCheckReset = onReceiverCheckReset,
-            )
-            ReceiverVolumeStepSetting(
-                step = settings.receiverVolumeStep,
-                enabled = settings.receiverHost.isNotBlank(),
-                onChange = onReceiverVolumeStepChange,
-            )
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            SectionHeader(stringResource(R.string.settings_troubleshooting))
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.diagnostics)) },
-                supportingContent = { Text(stringResource(R.string.diagnostics_description)) },
-                modifier = Modifier.clickable(onClick = onOpenDiagnostics),
-            )
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun SensitivitySetting(sensitivity: Int, onChange: (Int) -> Unit) {
+private fun SensitivitySetting(sensitivity: Int, shapes: ListItemShapes, onChange: (Int) -> Unit) {
     val haptics = LocalHapticFeedback.current
-    // Track the thumb locally while dragging; persist when released.
-    var position by remember(sensitivity) { mutableFloatStateOf(sensitivity.toFloat()) }
-    val level = position.roundToInt()
+    val range = RemoteSettings.MIN_SWIPE_SENSITIVITY.toFloat()..RemoteSettings.MAX_SWIPE_SENSITIVITY.toFloat()
+    // The thumb is tracked locally while dragging; the setting is saved when released.
+    val state = remember {
+        SliderState(sensitivity.toFloat(), RemoteSettings.MAX_SWIPE_SENSITIVITY - RemoteSettings.MIN_SWIPE_SENSITIVITY - 1, range)
+    }
+    LaunchedEffect(sensitivity) { state.value = sensitivity.toFloat() }
+    val level = state.value.roundToInt()
     val levelLabel = sensitivityLabel(level)
 
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.settings_sensitivity)) },
-        supportingContent = { Text(stringResource(R.string.settings_sensitivity_description)) },
-        trailingContent = { Text(levelLabel, style = MaterialTheme.typography.labelLarge) },
-    )
-    Slider(
-        value = position,
-        onValueChange = { value ->
-            if (value.roundToInt() != level) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-            position = value
+    SegmentedListItem(
+        shapes = shapes,
+        colors = settingsItemColors(),
+        supportingContent = {
+            Column {
+                Text(stringResource(R.string.settings_sensitivity_description))
+                Slider(
+                    state = state,
+                    onValueChange = { value ->
+                        if (value.roundToInt() != level) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        state.value = value
+                    },
+                    onValueChangeFinished = { onChange(state.value.roundToInt()) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { stateDescription = levelLabel },
+                )
+                Row(Modifier.fillMaxWidth()) {
+                    Text(
+                        text = sensitivityLabel(RemoteSettings.MIN_SWIPE_SENSITIVITY),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = sensitivityLabel(RemoteSettings.MAX_SWIPE_SENSITIVITY),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
         },
-        onValueChangeFinished = { onChange(position.roundToInt()) },
-        valueRange = RemoteSettings.MIN_SWIPE_SENSITIVITY.toFloat()..RemoteSettings.MAX_SWIPE_SENSITIVITY.toFloat(),
-        steps = RemoteSettings.MAX_SWIPE_SENSITIVITY - RemoteSettings.MIN_SWIPE_SENSITIVITY - 1,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .semantics { stateDescription = levelLabel },
-    )
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Text(
-            text = sensitivityLabel(RemoteSettings.MIN_SWIPE_SENSITIVITY),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = sensitivityLabel(RemoteSettings.MAX_SWIPE_SENSITIVITY),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+        trailingContent = { Text(levelLabel, style = MaterialTheme.typography.labelLarge) },
+        verticalAlignment = Alignment.Top,
+    ) { Text(stringResource(R.string.settings_sensitivity)) }
 }
 
 @Composable
@@ -253,29 +292,31 @@ private fun sensitivityLabel(level: Int): String = stringResource(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HoldRepeatSpeedSetting(speed: Int, enabled: Boolean, onChange: (Int) -> Unit) {
+private fun HoldRepeatSpeedSetting(speed: Int, enabled: Boolean, shapes: ListItemShapes, onChange: (Int) -> Unit) {
     val labels = listOf(
         R.string.settings_hold_repeat_speed_calm,
         R.string.settings_hold_repeat_speed_medium,
         R.string.settings_hold_repeat_speed_fast,
     )
-    ListItem(headlineContent = { Text(stringResource(R.string.settings_hold_repeat_speed)) })
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-    ) {
-        RemoteSettings.HOLD_REPEAT_SPEEDS.forEachIndexed { index, value ->
-            SegmentedButton(
-                selected = speed == value,
-                onClick = { onChange(value) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
-                enabled = enabled,
-            ) {
-                Text(stringResource(labels[index]))
+    SegmentedListItem(
+        shapes = shapes,
+        colors = settingsItemColors(),
+        enabled = enabled,
+        supportingContent = {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                RemoteSettings.HOLD_REPEAT_SPEEDS.forEachIndexed { index, value ->
+                    SegmentedButton(
+                        selected = speed == value,
+                        onClick = { onChange(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
+                        enabled = enabled,
+                    ) {
+                        Text(stringResource(labels[index]))
+                    }
+                }
             }
-        }
-    }
+        },
+    ) { Text(stringResource(R.string.settings_hold_repeat_speed)) }
 }
 
 @Composable
@@ -284,12 +325,18 @@ private fun ReceiverHostSetting(
     connected: Boolean,
     check: ReceiverCheck,
     discoveredReceivers: @Composable () -> List<DiscoveredReceiver>?,
+    shapes: ListItemShapes,
     onSave: (String) -> Unit,
     onCheckReset: () -> Unit,
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.settings_receiver_host)) },
+    SegmentedListItem(
+        onClick = {
+            onCheckReset()
+            editing = true
+        },
+        shapes = shapes,
+        colors = settingsItemColors(),
         supportingContent = {
             Text(
                 when {
@@ -299,11 +346,7 @@ private fun ReceiverHostSetting(
                 },
             )
         },
-        modifier = Modifier.clickable {
-            onCheckReset()
-            editing = true
-        },
-    )
+    ) { Text(stringResource(R.string.settings_receiver_host)) }
     if (editing) {
         LaunchedEffect(check) {
             if (check == ReceiverCheck.Saved) {
@@ -360,14 +403,14 @@ private fun ReceiverDialog(
                         )
                         discovered.forEach { receiver ->
                             ListItem(
-                                headlineContent = { Text(receiver.name) },
-                                supportingContent = { Text(receiver.host) },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier.clickable(enabled = !checking) {
+                                onClick = {
                                     input = receiver.host
                                     onSave(receiver.host)
                                 },
-                            )
+                                enabled = !checking,
+                                supportingContent = { Text(receiver.host) },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            ) { Text(receiver.name) }
                         }
                     }
                 }
@@ -412,29 +455,31 @@ private fun ReceiverDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReceiverVolumeStepSetting(step: Int, enabled: Boolean, onChange: (Int) -> Unit) {
+private fun ReceiverVolumeStepSetting(step: Int, enabled: Boolean, shapes: ListItemShapes, onChange: (Int) -> Unit) {
     val labels = listOf(
         R.string.settings_receiver_volume_step_half,
         R.string.settings_receiver_volume_step_1,
         R.string.settings_receiver_volume_step_2,
     )
-    ListItem(headlineContent = { Text(stringResource(R.string.settings_receiver_volume_step)) })
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-    ) {
-        RemoteSettings.RECEIVER_VOLUME_STEPS.forEachIndexed { index, value ->
-            SegmentedButton(
-                selected = step == value,
-                onClick = { onChange(value) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
-                enabled = enabled,
-            ) {
-                Text(stringResource(labels[index]))
+    SegmentedListItem(
+        shapes = shapes,
+        colors = settingsItemColors(),
+        enabled = enabled,
+        supportingContent = {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                RemoteSettings.RECEIVER_VOLUME_STEPS.forEachIndexed { index, value ->
+                    SegmentedButton(
+                        selected = step == value,
+                        onClick = { onChange(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
+                        enabled = enabled,
+                    ) {
+                        Text(stringResource(labels[index]))
+                    }
+                }
             }
-        }
-    }
+        },
+    ) { Text(stringResource(R.string.settings_receiver_volume_step)) }
 }
 
 @Composable
@@ -442,14 +487,43 @@ private fun SwitchSetting(
     title: String,
     description: String,
     checked: Boolean,
+    shapes: ListItemShapes,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
+    SegmentedListItem(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        shapes = shapes,
+        colors = settingsItemColors(),
         supportingContent = { Text(description) },
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
-        modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+    ) { Text(title) }
+}
+
+/**
+ * Every card in a group looks the same whatever its state; by default a
+ * switched-on row takes the selected colour, which reads as highlighted.
+ */
+@Composable
+private fun settingsItemColors(): ListItemColors {
+    val container = MaterialTheme.colorScheme.surfaceContainerHigh
+    return ListItemDefaults.segmentedColors(
+        containerColor = container,
+        selectedContainerColor = container,
+        disabledContainerColor = container,
     )
+}
+
+/** A titled group of settings drawn as one segmented list: rounded at its ends, gaps between. */
+@Composable
+private fun SettingsGroup(title: String, vararg items: @Composable (ListItemShapes) -> Unit) {
+    SectionHeader(title)
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+    ) {
+        items.forEachIndexed { index, item -> item(ListItemDefaults.segmentedShapes(index, items.size)) }
+    }
 }
 
 @Composable
@@ -458,6 +532,6 @@ private fun SectionHeader(text: String) {
         text = text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = 32.dp, top = 24.dp, end = 32.dp, bottom = 8.dp),
     )
 }

@@ -19,6 +19,9 @@ message SavedTv {
   bool shortcuts_initialized = 7;
   // Apps the TV has reported in the foreground, most recent first.
   repeated SeenApp seen_apps = 8;
+  // The app last reported in the foreground, home screens included. The TV
+  // reports only switches, so this stands in until the next one.
+  string last_app_package = 9;
 }
 
 message SeenApp {

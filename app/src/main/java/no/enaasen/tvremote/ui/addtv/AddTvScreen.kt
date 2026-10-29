@@ -1,6 +1,5 @@
 package no.enaasen.tvremote.ui.addtv
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -78,29 +77,26 @@ internal fun AddTvScreen(
             if (discovered.isEmpty()) {
                 item {
                     ListItem(
-                        headlineContent = { Text(stringResource(R.string.searching_for_tvs)) },
                         leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) },
-                    )
+                    ) { Text(stringResource(R.string.searching_for_tvs)) }
                 }
             }
             items(discovered, key = { it.tv.name }) { item ->
                 ListItem(
-                    headlineContent = { Text(item.tv.name) },
+                    onClick = { onTvChosen(item.tv.name, item.tv.host, item.tv.port) },
                     supportingContent = {
                         Text(if (item.alreadyAdded) stringResource(R.string.already_added) else item.tv.host)
                     },
                     leadingContent = { Icon(painterResource(R.drawable.ic_tv), contentDescription = null) },
-                    modifier = Modifier.clickable { onTvChosen(item.tv.name, item.tv.host, item.tv.port) },
-                )
+                ) { Text(item.tv.name) }
             }
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             item {
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.enter_ip)) },
+                    onClick = { showIpDialog = true },
                     supportingContent = { Text(stringResource(R.string.enter_ip_hint)) },
                     leadingContent = { Icon(painterResource(R.drawable.ic_lan_fill1), contentDescription = null) },
-                    modifier = Modifier.clickable { showIpDialog = true },
-                )
+                ) { Text(stringResource(R.string.enter_ip)) }
             }
         }
     }

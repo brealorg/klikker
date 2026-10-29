@@ -162,8 +162,9 @@ private fun DiagnosticEventItem(event: DiagnosticEvent) {
     )
     val seconds = (event.timeMillis / 1000 % 60).toString().padStart(2, '0')
     ListItem(
+        // Only events with details expand; the others must not look disabled.
+        modifier = Modifier.clickable(enabled = event.detail != null) { expanded = !expanded },
         overlineContent = { Text("$time:$seconds · ${categoryLabel(event.category)}") },
-        headlineContent = { Text(event.message) },
         supportingContent = event.detail?.let { detail ->
             {
                 Text(
@@ -176,8 +177,7 @@ private fun DiagnosticEventItem(event: DiagnosticEvent) {
             }
         },
         leadingContent = { LevelIcon(event.level) },
-        modifier = Modifier.clickable(enabled = event.detail != null) { expanded = !expanded },
-    )
+    ) { Text(event.message) }
 }
 
 @Composable

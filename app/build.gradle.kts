@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.datastore)
+    implementation(libs.androidx.palette.ktx)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

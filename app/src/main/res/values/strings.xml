@@ -149,4 +149,6 @@
     <string name="settings_show_app_names_description">Names under the app icons at the bottom of the remote</string>
     <string name="type_on_tv">Type on the TV</string>
     <string name="hide_keyboard">Hide keyboard</string>
+    <string name="now_open">Open on the TV</string>
+    <string name="home_screen">Home screen</string>
 </resources>
