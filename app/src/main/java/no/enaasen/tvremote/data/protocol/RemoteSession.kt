@@ -1,6 +1,8 @@
 package no.enaasen.tvremote.data.protocol
 
 import android.os.SystemClock
+import android.view.KeyEvent
+import java.util.concurrent.atomic.AtomicInteger
 import java.io.Closeable
 import java.io.EOFException
 import javax.net.ssl.SSLException
@@ -10,17 +12,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
 import no.enaasen.tvremote.data.model.TvStatus
+import no.enaasen.tvremote.data.model.TvTextField
 import no.enaasen.tvremote.data.security.ClientIdentity
 import no.enaasen.tvremote.data.security.PinningTrustManager
 import no.enaasen.tvremote.proto.remote.RemoteDeviceInfo
@@ -28,6 +32,9 @@ import no.enaasen.tvremote.proto.remote.RemoteDirection
 import no.enaasen.tvremote.proto.remote.RemoteMessage
 import no.enaasen.tvremote.proto.remote.remoteAppLinkLaunchRequest
 import no.enaasen.tvremote.proto.remote.remoteConfigure
+import no.enaasen.tvremote.proto.remote.remoteEditInfo
+import no.enaasen.tvremote.proto.remote.remoteImeBatchEdit
+import no.enaasen.tvremote.proto.remote.remoteImeObject
 import no.enaasen.tvremote.proto.remote.remoteKeyInject
 import no.enaasen.tvremote.proto.remote.remoteMessage
 import no.enaasen.tvremote.proto.remote.remotePingResponse
@@ -70,6 +77,28 @@ class RemoteSession private constructor(
         volumeTaps.trySend(keyCode)
     }
 
+    // Typing: the TV accepts an insertion only with the counters it last
+    // reported, and reports new ones (and its text) after each insertion.
+    // Deletions are backspace key presses, which need no counters.
+    private val wantedText = MutableStateFlow<String?>(null)
+    private val textReports = Channel<Unit>(Channel.CONFLATED)
+
+    @Volatile
+    private var imeCounter = 0
+
+    @Volatile
+    private var imeFieldCounter = 0
+
+    /** The TV's text as last reported, adjusted for edits sent since. */
+    @Volatile
+    private var tvText = ""
+
+
+    /** Makes the TV's focused text field read [text]. */
+    fun setText(text: String) {
+        wantedText.value = text
+    }
+
     fun launchAppLink(link: String) = send(
         remoteMessage { remoteAppLinkLaunchRequest = remoteAppLinkLaunchRequest { appLink = link } },
     )
@@ -82,6 +111,10 @@ class RemoteSession private constructor(
             } finally {
                 close()
             }
+        }
+        launch {
+            // Collecting a StateFlow skips text typed while an earlier sync ran.
+            wantedText.collect { text -> if (text != null) syncText(text) }
         }
         launch {
             for (keyCode in volumeTaps) {
@@ -100,6 +133,39 @@ class RemoteSession private constructor(
         outbox.close()
         volumeTaps.close()
         runCatching { socket.close() }
+    }
+
+    private suspend fun syncText(wanted: String) {
+        repeat(MAX_TEXT_SYNC_ROUNDS) {
+            val current = tvText
+            if (current == wanted) return
+            // Assumes the TV's cursor is at the end, as it is while typing.
+            val common = current.commonPrefixWith(wanted).length
+            repeat(current.length - common) { sendKey(KeyEvent.KEYCODE_DEL) }
+            tvText = current.take(common)
+            if (wanted.length == common) return
+            textReports.tryReceive()
+            send(
+                remoteMessage {
+                    remoteImeBatchEdit = remoteImeBatchEdit {
+                        imeCounter = this@RemoteSession.imeCounter
+                        fieldCounter = imeFieldCounter
+                        editInfo += remoteEditInfo {
+                            insert = 1
+                            textFieldStatus = remoteImeObject {
+                                start = wanted.length - 1
+                                end = wanted.length - 1
+                                value = wanted.substring(common)
+                            }
+                        }
+                    }
+                },
+            )
+            tvText = wanted
+            // The next insertion needs the counters the TV reports for this one;
+            // the report also corrects tvText if the TV changed the text.
+            withTimeoutOrNull(TEXT_REPORT_TIMEOUT_MS) { textReports.receive() }
+        }
     }
 
     private fun send(message: RemoteMessage) {
@@ -160,15 +226,49 @@ class RemoteSession private constructor(
                     )
                 }
             }
-            message.hasRemoteImeKeyInject() -> {
-                val appPackage = message.remoteImeKeyInject.appInfo.appPackage
+            // The TV's answer to each insertion, with the counters for the next one.
+            message.hasRemoteImeShowRequest() -> with(message.remoteImeShowRequest.remoteTextFieldStatus) {
+                imeFieldCounter = counterField
+                tvText = value
+                _status.update { it.copy(textField = it.textField?.copy(label = label, text = value)) }
+                textReports.trySend(Unit)
+            }
+            message.hasRemoteImeKeyInject() -> with(message.remoteImeKeyInject) {
+                val appPackage = appInfo.appPackage
                 if (appPackage.isNotEmpty()) _status.update { it.copy(currentAppPackage = appPackage) }
+                if (hasTextFieldStatus()) {
+                    val focusId = focusIds.incrementAndGet()
+                    imeCounter = appInfo.counter
+                    imeFieldCounter = textFieldStatus.counterField
+                    tvText = textFieldStatus.value
+                    _status.update {
+                        it.copy(
+                            textField = TvTextField(
+                                // The TV sends this on each focus (its edit reports come
+                                // as show requests), so every one is a new field.
+                                focusId = focusId,
+                                label = textFieldStatus.label,
+                                text = textFieldStatus.value,
+                                inputType = appInfo.int2,
+                                imeOptions = appInfo.int3,
+                            ),
+                        )
+                    }
+                    textReports.trySend(Unit)
+                } else {
+                    wantedText.value = null
+                    _status.update { it.copy(textField = null) }
+                }
             }
         }
     }
 
     companion object {
         const val DEFAULT_PORT = 6466
+        // Shared across connections so a field after a reconnect is never mistaken for an earlier one.
+        private val focusIds = AtomicInteger()
+        private const val MAX_TEXT_SYNC_ROUNDS = 3
+        private const val TEXT_REPORT_TIMEOUT_MS = 1_000L
         private const val SILENCE_WARNING_MS = 12_000L
         private const val VOLUME_TAP_INTERVAL_MS = 400L
         private const val MAX_QUEUED_VOLUME_TAPS = 10

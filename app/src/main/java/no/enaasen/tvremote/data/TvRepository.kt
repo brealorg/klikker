@@ -170,6 +170,11 @@ class TvRepository @Inject constructor(
         }
     }
 
+    /** Makes the text field focused on the TV read [text]. */
+    fun setText(text: String) {
+        activeSession?.setText(text)
+    }
+
     fun launchApp(packageName: String) {
         activeSession?.launchAppLink("market://launch?id=$packageName")
     }

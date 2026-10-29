@@ -55,6 +55,10 @@ class RemoteViewModel @Inject constructor(
         },
     )
 
+    fun setText(text: String) = repository.setText(text)
+
+    fun submitText() = repository.sendKey(KeyEvent.KEYCODE_ENTER)
+
     fun launch(shortcut: AppShortcut) = repository.launchApp(shortcut.packageName)
 
     fun retry() = repository.reconnect()

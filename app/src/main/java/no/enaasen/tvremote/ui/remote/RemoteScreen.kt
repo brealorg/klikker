@@ -1,6 +1,7 @@
 package no.enaasen.tvremote.ui.remote
 
 import android.view.KeyEvent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -102,6 +103,8 @@ fun RemoteRoute(
             onLaunch = viewModel::launch,
             onAddShortcut = viewModel::addShortcut,
             onRemoveShortcut = viewModel::removeShortcut,
+            onTextChange = viewModel::setText,
+            onSubmitText = viewModel::submitText,
         ),
     )
 }
@@ -120,6 +123,8 @@ class RemoteActions(
     val onLaunch: (AppShortcut) -> Unit,
     val onAddShortcut: (label: String, packageName: String) -> Unit,
     val onRemoveShortcut: (AppShortcut) -> Unit,
+    val onTextChange: (String) -> Unit,
+    val onSubmitText: () -> Unit,
 )
 
 @Composable
@@ -179,6 +184,11 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
     val haptics = LocalHapticFeedback.current
     var showTvSheet by rememberSaveable { mutableStateOf(false) }
     var showShortcutSheet by rememberSaveable { mutableStateOf(false) }
+    // The keyboard opens by itself when a TV text field gains focus, unless hidden for that field.
+    val textField = status?.textField
+    var hiddenTextFocusId by rememberSaveable { mutableStateOf<Int?>(null) }
+    val typing = textField != null && textField.focusId != hiddenTextFocusId
+    BackHandler(enabled = typing) { hiddenTextFocusId = textField?.focusId }
 
     val key: (Int) -> Unit = { keyCode ->
         haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
@@ -186,6 +196,19 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
     }
 
     Scaffold(
+        bottomBar = {
+            if (typing) {
+                TvTextInputBar(
+                    field = textField,
+                    onTextChange = actions.onTextChange,
+                    onSubmit = {
+                        actions.onSubmitText()
+                        hiddenTextFocusId = textField.focusId
+                    },
+                    onHide = { hiddenTextFocusId = textField.focusId },
+                )
+            }
+        },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -196,6 +219,11 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     )
                 },
                 actions = {
+                    if (textField != null && !typing) {
+                        IconButton(onClick = { hiddenTextFocusId = null }) {
+                            Icon(painterResource(R.drawable.ic_keyboard), stringResource(R.string.type_on_tv))
+                        }
+                    }
                     IconButton(onClick = actions.onOpenSettings) {
                         Icon(painterResource(R.drawable.ic_settings), stringResource(R.string.settings))
                     }

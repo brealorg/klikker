@@ -70,6 +70,20 @@ data class TvStatus(
     val volumeMax: Int? = null,
     val isMuted: Boolean = false,
     val currentAppPackage: String? = null,
+    /** The text field focused on the TV, if any. */
+    val textField: TvTextField? = null,
+)
+
+/** A text field focused on the TV, which the phone's keyboard can type into. */
+data class TvTextField(
+    /** Changes each time a field gains focus, so the phone can tell fields apart. */
+    val focusId: Int,
+    val label: String,
+    val text: String,
+    /** The field's android.text.InputType flags. */
+    val inputType: Int,
+    /** The field's android.view.inputmethod.EditorInfo IME options. */
+    val imeOptions: Int,
 )
 
 sealed interface ConnectionState {
