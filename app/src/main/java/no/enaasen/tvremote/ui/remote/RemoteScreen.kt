@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -27,9 +28,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
@@ -56,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -254,24 +259,39 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 onPair = { actions.onPairTv(tv) },
                 onDetails = actions.onOpenDiagnostics,
             )
-            SwipePad(
-                enabled = connected,
-                sensitivity = uiState.settings.swipeSensitivity,
-                flingEnabled = uiState.settings.flingEnabled,
-                holdToRepeat = uiState.settings.holdToRepeat,
-                holdRepeatSpeed = uiState.settings.holdRepeatSpeed,
-                onDirection = actions.onMove,
-                onSelect = { actions.onKey(KeyEvent.KEYCODE_DPAD_CENTER) },
-                onSelectHeld = { held -> actions.onHoldKey(KeyEvent.KEYCODE_DPAD_CENTER, held) },
+            val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay() ?: status?.toVolumeDisplay()
+            VolumeKnob(
+                volume = volume,
+                padEnabled = connected,
+                onVolumeStep = { up -> actions.onKey(if (up) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN) },
+                pad = { padModifier, onNudge ->
+                    SwipePad(
+                        enabled = connected,
+                        sensitivity = uiState.settings.swipeSensitivity,
+                        flingEnabled = uiState.settings.flingEnabled,
+                        holdToRepeat = uiState.settings.holdToRepeat,
+                        holdRepeatSpeed = uiState.settings.holdRepeatSpeed,
+                        onDirection = { direction ->
+                            onNudge(direction)
+                            actions.onMove(direction)
+                        },
+                        onSelect = { actions.onKey(KeyEvent.KEYCODE_DPAD_CENTER) },
+                        onSelectHeld = { held -> actions.onHoldKey(KeyEvent.KEYCODE_DPAD_CENTER, held) },
+                        shape = CircleShape,
+                        containerColor = Color.Transparent,
+                        modifier = padModifier,
+                    )
+                },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             )
-            NavigationKeys(enabled = connected, onKey = key)
-            VolumeControls(
-                volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay() ?: status?.toVolumeDisplay(),
+            RemoteToolbar(
+                enabled = connected,
+                muted = volume?.isMuted == true,
+                volumeEnabled = volume != null,
                 onKey = key,
-                onHoldKey = actions.onHoldKey,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
             ShortcutRow(
                 apps = uiState.apps,
@@ -377,24 +397,35 @@ private fun ConnectionMessage(
     }
 }
 
+/** Back, Home, Play/Pause and Mute, floating below the knob. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NavigationKeys(enabled: Boolean, onKey: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        RemoteKey(R.drawable.ic_arrow_back, R.string.key_back, enabled) { onKey(KeyEvent.KEYCODE_BACK) }
-        RemoteKey(R.drawable.ic_home, R.string.key_home, enabled) { onKey(KeyEvent.KEYCODE_HOME) }
-        RemoteKey(R.drawable.ic_play_pause, R.string.key_play_pause, enabled) { onKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }
+private fun RemoteToolbar(
+    enabled: Boolean,
+    muted: Boolean,
+    volumeEnabled: Boolean,
+    onKey: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    HorizontalFloatingToolbar(expanded = true, modifier = modifier) {
+        IconButton(onClick = { onKey(KeyEvent.KEYCODE_BACK) }, enabled = enabled) {
+            Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.key_back))
+        }
+        IconButton(onClick = { onKey(KeyEvent.KEYCODE_HOME) }, enabled = enabled) {
+            Icon(painterResource(R.drawable.ic_home), stringResource(R.string.key_home))
+        }
+        FilledIconButton(onClick = { onKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }, enabled = enabled) {
+            Icon(painterResource(R.drawable.ic_play_pause), stringResource(R.string.key_play_pause))
+        }
+        IconToggleButton(
+            checked = muted,
+            onCheckedChange = { onKey(KeyEvent.KEYCODE_VOLUME_MUTE) },
+            enabled = volumeEnabled,
+        ) {
+            Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
+        }
     }
 }
-
-@Composable
-private fun RemoteKey(icon: Int, label: Int, enabled: Boolean, onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(64.dp)) {
-        Icon(painterResource(icon), stringResource(label), Modifier.size(28.dp))
-    }
-}
-
-/** What the volume row shows, from the receiver when it is connected and otherwise the TV. */
-private data class VolumeDisplay(val level: String?, val fraction: Float?, val isMuted: Boolean)
 
 private fun TvStatus.toVolumeDisplay() = VolumeDisplay(
     level = volumeLevel?.toString(),
@@ -408,83 +439,6 @@ private fun ReceiverStatus.toVolumeDisplay() = VolumeDisplay(
     fraction = volumeHalfSteps?.let { it.toFloat() / maxHalfSteps },
     isMuted = isMuted,
 )
-
-@Composable
-private fun VolumeControls(volume: VolumeDisplay?, onKey: (Int) -> Unit, onHoldKey: (Int, Boolean) -> Unit) {
-    val enabled = volume != null
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        HoldableKeyButton(R.drawable.ic_volume_down, R.string.volume_down, KeyEvent.KEYCODE_VOLUME_DOWN, enabled, onKey, onHoldKey)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val level = volume?.level
-            val fraction = volume?.fraction
-            if (fraction != null) {
-                LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-            }
-            Text(
-                text = if (level != null) stringResource(R.string.volume_level_text, level) else stringResource(R.string.volume),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-        }
-        HoldableKeyButton(R.drawable.ic_volume_up, R.string.volume_up, KeyEvent.KEYCODE_VOLUME_UP, enabled, onKey, onHoldKey)
-        IconToggleButton(
-            checked = volume?.isMuted == true,
-            onCheckedChange = { onKey(KeyEvent.KEYCODE_VOLUME_MUTE) },
-            enabled = enabled,
-        ) {
-            Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
-        }
-    }
-}
-
-/**
- * Tap sends one key press. Holding sends a long press that the TV repeats at
- * its own pace, like holding a button on a physical remote — sending our own
- * repeats outruns slow paths such as HDMI-CEC volume.
- */
-@Composable
-private fun HoldableKeyButton(
-    icon: Int,
-    label: Int,
-    keyCode: Int,
-    enabled: Boolean,
-    onKey: (Int) -> Unit,
-    onHoldKey: (Int, Boolean) -> Unit,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val haptics = LocalHapticFeedback.current
-    val longPressTimeout = LocalViewConfiguration.current.longPressTimeoutMillis
-    val currentOnHoldKey by rememberUpdatedState(onHoldKey)
-    var holding by remember { mutableStateOf(false) }
-    LaunchedEffect(pressed) {
-        if (pressed) {
-            delay(longPressTimeout)
-            holding = true
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            currentOnHoldKey(keyCode, true)
-        } else if (holding) {
-            holding = false
-            currentOnHoldKey(keyCode, false)
-        }
-    }
-    DisposableEffect(Unit) {
-        onDispose { if (holding) currentOnHoldKey(keyCode, false) }
-    }
-    FilledTonalIconButton(
-        onClick = { if (!holding) onKey(keyCode) },
-        enabled = enabled,
-        interactionSource = interactionSource,
-        modifier = Modifier.size(56.dp),
-    ) {
-        Icon(painterResource(icon), stringResource(label))
-    }
-}
 
 /** Pinned shortcuts first, then apps the TV has opened recently as suggestions. */
 @Composable

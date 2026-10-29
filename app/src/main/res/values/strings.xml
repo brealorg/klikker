@@ -28,7 +28,7 @@
 
     <!-- Swipe pad -->
     <string name="swipe_pad">Touchpad</string>
-    <string name="swipe_pad_hint">Swipe to move · tap to select</string>
+    <string name="swipe_pad_hint">Swipe to move\nTap to select</string>
     <string name="swipe_pad_state_disabled">Not connected</string>
     <string name="direction_up">Up</string>
     <string name="direction_down">Down</string>
@@ -136,7 +136,6 @@
     <string name="settings_receiver_volume_step_half">0.5 dB</string>
     <string name="settings_receiver_volume_step_1">1 dB</string>
     <string name="settings_receiver_volume_step_2">2 dB</string>
-    <string name="volume_level_text">Volume %1$s</string>
     <string name="diagnostics_category_receiver">Receiver</string>
     <string name="settings_receiver_searching">Searching your network…</string>
     <string name="settings_receiver_found">Found on your network</string>
