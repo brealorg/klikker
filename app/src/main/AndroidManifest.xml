@@ -10,6 +10,44 @@
     <!-- Prerequisite for the connectedDevice foreground service type. -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
+    <!-- Apps whose icons are shown for the TV's apps; keep in sync with AppCatalog. -->
+    <queries>
+        <package android:name="com.amazon.amazonvideo.livingroom" />
+        <package android:name="com.amazon.avod.thirdpartyclient" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.cxinventor.file.explorer" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.edde746.plezy" />
+        <package android:name="com.esaba.downloader" />
+        <package android:name="com.google.android.apps.youtube.kids" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.google.android.play.games" />
+        <package android:name="com.google.android.tv" />
+        <package android:name="com.google.android.videos" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.youtube.tv" />
+        <package android:name="com.google.android.youtube.tvkids" />
+        <package android:name="com.google.android.youtube.tvmusic" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.netflix.ninja" />
+        <package android:name="com.nvidia.geforcenow" />
+        <package android:name="com.nvidia.tegrazone3" />
+        <package android:name="com.plexapp.android" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.spotify.tv.android" />
+        <package android:name="com.termux" />
+        <package android:name="com.valvesoftware.steamlink" />
+        <package android:name="com.wbd.stream" />
+        <package android:name="no.nrk.tv" />
+        <package android:name="no.rikstv.atv" />
+        <package android:name="org.jellyfin.androidtv" />
+        <package android:name="org.jellyfin.mobile" />
+        <package android:name="org.smarttube.beta" />
+        <package android:name="org.smarttube.stable" />
+        <package android:name="org.videolan.vlc" />
+        <package android:name="org.xbmc.kodi" />
+    </queries>
+
     <application
         android:name=".TvRemoteApplication"
         android:allowBackup="false"

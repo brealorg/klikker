@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,8 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,10 +68,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.DecimalFormat
 import kotlinx.coroutines.delay
 import no.enaasen.tvremote.R
+import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.Tv
+import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.model.TvStatus
 import no.enaasen.tvremote.data.model.tv
 
@@ -188,7 +191,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 title = {
                     TvTitle(
                         tv = tv,
-                        statusText = connection.statusText(uiState.shortcuts),
+                        statusText = connection.statusText(uiState.apps.pinned),
                         onClick = { showTvSheet = true },
                     )
                 },
@@ -243,7 +246,8 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 onHoldKey = actions.onHoldKey,
             )
             ShortcutRow(
-                shortcuts = uiState.shortcuts,
+                apps = uiState.apps,
+                showNames = uiState.settings.showAppNames,
                 enabled = connected,
                 onLaunch = { shortcut ->
                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -266,7 +270,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
     }
     if (showShortcutSheet) {
         ShortcutSheet(
-            shortcuts = uiState.shortcuts,
+            apps = uiState.apps,
             currentAppPackage = status?.currentAppPackage,
             onAdd = actions.onAddShortcut,
             onRemove = actions.onRemoveShortcut,
@@ -302,7 +306,7 @@ private fun TvTitle(tv: Tv, statusText: String, onClick: () -> Unit) {
 @Composable
 private fun ConnectionState.statusText(shortcuts: List<AppShortcut>): String = when (this) {
     is ConnectionState.Connected -> status.currentAppPackage
-        ?.let { pkg -> shortcuts.find { it.packageName == pkg }?.label ?: pkg }
+        ?.let { pkg -> shortcuts.find { it.packageName == pkg }?.label ?: AppCatalog.label(pkg) }
         ?: stringResource(R.string.status_connected)
     is ConnectionState.Unreachable -> stringResource(R.string.status_unreachable)
     is ConnectionState.PairingRequired -> stringResource(R.string.status_pairing_required)
@@ -454,25 +458,36 @@ private fun HoldableKeyButton(
     }
 }
 
+/** Pinned shortcuts first, then apps the TV has opened recently as suggestions. */
 @Composable
 private fun ShortcutRow(
-    shortcuts: List<AppShortcut>,
+    apps: TvApps,
+    showNames: Boolean,
     enabled: Boolean,
     onLaunch: (AppShortcut) -> Unit,
     onEdit: () -> Unit,
 ) {
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(shortcuts, key = { it.packageName }) { shortcut ->
-            AssistChip(onClick = { onLaunch(shortcut) }, label = { Text(shortcut.label) }, enabled = enabled)
+        items(apps.pinned, key = { "pinned:${it.packageName}" }) { shortcut ->
+            AppTile(shortcut.label, shortcut.packageName, showNames, enabled, onClick = { onLaunch(shortcut) })
+        }
+        if (apps.pinned.isNotEmpty() && apps.suggested.isNotEmpty()) {
+            item(key = "divider") {
+                VerticalDivider(Modifier.height(48.dp).padding(horizontal = 4.dp))
+            }
+        }
+        items(apps.suggested, key = { "suggested:${it.packageName}" }) { app ->
+            AppTile(app.label, app.packageName, showNames, enabled, onClick = { onLaunch(app) })
         }
         item(key = "edit") {
-            AssistChip(
+            ActionTile(
+                label = stringResource(R.string.edit_shortcuts),
+                showLabel = showNames,
+                icon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
                 onClick = onEdit,
-                label = { Text(stringResource(R.string.edit_shortcuts)) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null, Modifier.size(18.dp)) },
             )
         }
     }
@@ -541,41 +556,68 @@ private fun TvSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ShortcutSheet(
-    shortcuts: List<AppShortcut>,
+    apps: TvApps,
     currentAppPackage: String?,
     onAdd: (label: String, packageName: String) -> Unit,
     onRemove: (AppShortcut) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var adding by rememberSaveable { mutableStateOf(false) }
-    val canAddCurrent = currentAppPackage != null && shortcuts.none { it.packageName == currentAppPackage }
+    val canAddCurrent = currentAppPackage != null && apps.pinned.none { it.packageName == currentAppPackage }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        SheetTitle(stringResource(R.string.shortcuts))
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.add_current_app)) },
-            supportingContent = { Text(currentAppPackage ?: stringResource(R.string.add_current_app_hint)) },
-            leadingContent = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
-            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            modifier = Modifier.clickable(enabled = canAddCurrent) { adding = true },
-        )
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        shortcuts.forEach { shortcut ->
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            SheetTitle(stringResource(R.string.shortcuts))
             ListItem(
-                headlineContent = { Text(shortcut.label) },
-                supportingContent = { Text(shortcut.packageName) },
-                trailingContent = {
-                    IconButton(onClick = { onRemove(shortcut) }) {
-                        Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.remove_shortcut, shortcut.label))
-                    }
+                headlineContent = { Text(stringResource(R.string.add_current_app)) },
+                supportingContent = {
+                    Text(currentAppPackage?.let(AppCatalog::label) ?: stringResource(R.string.add_current_app_hint))
                 },
+                leadingContent = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                modifier = Modifier.clickable(enabled = canAddCurrent) { adding = true },
             )
+            if (apps.pinned.isNotEmpty()) {
+                SheetSectionHeader(stringResource(R.string.shortcuts_pinned))
+                apps.pinned.forEach { shortcut ->
+                    ListItem(
+                        headlineContent = { Text(shortcut.label) },
+                        supportingContent = { Text(shortcut.packageName) },
+                        trailingContent = {
+                            IconButton(onClick = { onRemove(shortcut) }) {
+                                Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.remove_shortcut, shortcut.label))
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    )
+                }
+            }
+            SheetSectionHeader(stringResource(R.string.shortcuts_seen))
+            if (apps.suggested.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.shortcuts_seen_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            apps.suggested.forEach { app ->
+                ListItem(
+                    headlineContent = { Text(app.label) },
+                    supportingContent = { Text(app.packageName) },
+                    trailingContent = {
+                        IconButton(onClick = { onAdd(app.label, app.packageName) }) {
+                            Icon(painterResource(R.drawable.ic_add), stringResource(R.string.pin_shortcut, app.label))
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                )
+            }
+            Spacer(Modifier.height(16.dp))
         }
-        Spacer(Modifier.height(16.dp))
     }
 
     if (adding && currentAppPackage != null) {
-        var label by rememberSaveable { mutableStateOf(currentAppPackage.substringAfterLast('.').replaceFirstChar { it.uppercase() }) }
+        var label by rememberSaveable { mutableStateOf(AppCatalog.label(currentAppPackage)) }
         AlertDialog(
             onDismissRequest = { adding = false },
             title = { Text(stringResource(R.string.add_current_app)) },
@@ -599,6 +641,16 @@ private fun ShortcutSheet(
             },
         )
     }
+}
+
+@Composable
+private fun SheetSectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
+    )
 }
 
 @Composable

@@ -18,9 +18,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,20 +29,23 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
 import no.enaasen.tvremote.data.diagnostics.formatDuration
 import no.enaasen.tvremote.data.discovery.TvDiscovery
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
-import no.enaasen.tvremote.data.model.DefaultAppShortcuts
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
+import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.protocol.PairingRequiredException
 import no.enaasen.tvremote.data.protocol.PairingSession
 import no.enaasen.tvremote.data.protocol.RemoteSession
@@ -59,6 +61,7 @@ import no.enaasen.tvremote.proto.userdata.copy
 import no.enaasen.tvremote.proto.userdata.savedSettings
 import no.enaasen.tvremote.proto.userdata.savedShortcut
 import no.enaasen.tvremote.proto.userdata.savedTv
+import no.enaasen.tvremote.proto.userdata.seenApp
 
 /**
  * Single source of truth for saved TVs, shortcuts and the live connection.
@@ -84,13 +87,16 @@ class TvRepository @Inject constructor(
 
     val tvs: Flow<List<Tv>> = dataStore.data.map { data -> data.tvsList.map { it.toTv() } }
 
-    val shortcuts: Flow<List<AppShortcut>> = dataStore.data.map { data ->
-        if (data.shortcutsInitialized) {
-            data.shortcutsList.map { AppShortcut(it.label, it.packageName) }
-        } else {
-            DefaultAppShortcuts
-        }
-    }
+    /** The protocol can't list a TV's apps, so they are learned as the TV opens them. */
+    val apps: Flow<TvApps> = dataStore.data.map { data ->
+        val tv = data.selectedTv() ?: return@map TvApps()
+        val pinned = data.pinnedShortcuts(tv)
+        val suggested = tv.seenAppsList
+            .filter { seen -> pinned.none { it.packageName == seen.packageName } }
+            .take(MAX_SUGGESTED_APPS)
+            .map { AppShortcut(AppCatalog.label(it.packageName), it.packageName) }
+        TvApps(pinned, suggested)
+    }.distinctUntilChanged()
 
     val settings: StateFlow<RemoteSettings> = dataStore.data
         .map { it.settings.toModel() }
@@ -129,8 +135,8 @@ class TvRepository @Inject constructor(
                 emit(foreground)
             }
         val selectedTv = dataStore.data
-            .map { data -> data.tvsList.find { it.id == data.selectedId } ?: data.tvsList.firstOrNull() }
-            .distinctUntilChanged()
+            .map { it.selectedTv() }
+            .distinctUntilChanged { old, new -> old?.withoutApps() == new?.withoutApps() }
 
         scope.launch {
             val receiverHost = settings.map { it.receiverHost }.distinctUntilChanged()
@@ -201,8 +207,8 @@ class TvRepository @Inject constructor(
     suspend fun savePairedTv(name: String, host: String, port: Int, certificateSha256: ByteArray) {
         dataStore.updateData { data ->
             val existing = data.tvsList.indexOfFirst { it.host == host || it.name == name }
-            val tv = savedTv {
-                id = if (existing >= 0) data.tvsList[existing].id else UUID.randomUUID().toString()
+            // Re-pairing keeps the TV's shortcuts and learned apps.
+            val tv = (if (existing >= 0) data.tvsList[existing] else savedTv { id = UUID.randomUUID().toString() }).copy {
                 this.name = name
                 this.host = host
                 this.port = port
@@ -229,6 +235,7 @@ class TvRepository @Inject constructor(
                     backgroundConnectionDisabled = !updated.keepConnectedInBackground
                     receiverHost = updated.receiverHost.trim()
                     receiverVolumeStep = updated.receiverVolumeStep
+                    appNamesHidden = !updated.showAppNames
                 }
             }
         }
@@ -244,17 +251,38 @@ class TvRepository @Inject constructor(
 
     private suspend fun editShortcuts(transform: (List<AppShortcut>) -> List<AppShortcut>) {
         dataStore.updateData { data ->
-            val current = if (data.shortcutsInitialized) {
-                data.shortcutsList.map { AppShortcut(it.label, it.packageName) }
-            } else {
-                DefaultAppShortcuts
-            }
-            data.copy {
+            val tv = data.selectedTv() ?: return@updateData data
+            val updated = tv.copy {
+                val edited = transform(data.pinnedShortcuts(tv))
                 shortcuts.clear()
-                shortcuts += transform(current).map { savedShortcut { label = it.label; packageName = it.packageName } }
+                shortcuts += edited.map { savedShortcut { label = it.label; packageName = it.packageName } }
                 shortcutsInitialized = true
             }
+            data.copy { tvs[data.tvsList.indexOf(tv)] = updated }
         }
+    }
+
+    private suspend fun recordSeenApp(tvId: String, packageName: String) {
+        if (!AppCatalog.isSuggestible(packageName)) return
+        var isNew = false
+        dataStore.updateData { data ->
+            val index = data.tvsList.indexOfFirst { it.id == tvId }
+            if (index < 0) return@updateData data
+            val tv = data.tvsList[index]
+            isNew = tv.seenAppsList.none { it.packageName == packageName }
+            val seen = seenApp {
+                this.packageName = packageName
+                lastSeenMillis = System.currentTimeMillis()
+            }
+            val others = tv.seenAppsList.filter { it.packageName != packageName }
+            data.copy {
+                tvs[index] = tv.copy {
+                    seenApps.clear()
+                    seenApps += (listOf(seen) + others).take(MAX_SEEN_APPS)
+                }
+            }
+        }
+        if (isNew) log.info(DiagnosticCategory.Connection, "Found ${AppCatalog.label(packageName)} ($packageName) on the TV")
     }
 
     private suspend fun maintainConnection(saved: SavedTv) {
@@ -277,6 +305,11 @@ class TvRepository @Inject constructor(
                 ).use { session ->
                     activeSession = session
                     coroutineScope {
+                        launch {
+                            session.status.mapNotNull { it.currentAppPackage }.distinctUntilChanged().collect {
+                                recordSeenApp(saved.id, it)
+                            }
+                        }
                         launch {
                             combine(session.isReady, session.status) { ready, status ->
                                 if (ready) ConnectionState.Connected(tv, status) else ConnectionState.Connecting(tv)
@@ -347,10 +380,27 @@ class TvRepository @Inject constructor(
         const val MAX_BACKOFF_MS = 8_000L
         const val RELOCATE_AFTER_FAILURES = 2
         const val RELOCATE_TIMEOUT_MS = 5_000L
+        const val MAX_SEEN_APPS = 40
+        const val MAX_SUGGESTED_APPS = 10
     }
 }
 
 private fun SavedTv.toTv() = Tv(id = id, name = name, host = host, port = port)
+
+private fun UserData.selectedTv(): SavedTv? = tvsList.find { it.id == selectedId } ?: tvsList.firstOrNull()
+
+/** Shortcuts made before they were kept per TV apply until the TV gets its own. */
+private fun UserData.pinnedShortcuts(tv: SavedTv): List<AppShortcut> = when {
+    tv.shortcutsInitialized -> tv.shortcutsList
+    shortcutsInitialized -> shortcutsList
+    else -> emptyList()
+}.map { AppShortcut(it.label, it.packageName) }
+
+/** Changes to shortcuts and learned apps must not restart the connection. */
+private fun SavedTv.withoutApps(): SavedTv = copy {
+    shortcuts.clear()
+    seenApps.clear()
+}
 
 private fun SavedSettings.toModel() = RemoteSettings(
     swipeSensitivity = swipeSensitivity
@@ -365,4 +415,5 @@ private fun SavedSettings.toModel() = RemoteSettings(
     receiverHost = receiverHost,
     receiverVolumeStep = receiverVolumeStep.takeIf { it in RemoteSettings.RECEIVER_VOLUME_STEPS }
         ?: RemoteSettings.DEFAULT_RECEIVER_VOLUME_STEP,
+    showAppNames = !appNamesHidden,
 )

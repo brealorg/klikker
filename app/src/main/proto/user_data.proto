@@ -13,6 +13,17 @@ message SavedTv {
   int32 port = 4;
   // SHA-256 of the TV's TLS certificate, pinned at pairing time.
   bytes certificate_sha256 = 5;
+  repeated SavedShortcut shortcuts = 6;
+  // False until shortcuts are first edited for this TV; until then the
+  // legacy shared shortcuts in UserData apply.
+  bool shortcuts_initialized = 7;
+  // Apps the TV has reported in the foreground, most recent first.
+  repeated SeenApp seen_apps = 8;
+}
+
+message SeenApp {
+  string package_name = 1;
+  int64 last_seen_millis = 2;
 }
 
 message SavedShortcut {
@@ -35,13 +46,15 @@ message SavedSettings {
   string receiver_host = 7;
   // Half-dB steps per volume press (1, 2 or 4); 0 means unset and maps to the default.
   int32 receiver_volume_step = 8;
+  // Inverted so the default (false) shows names under app icons.
+  bool app_names_hidden = 9;
 }
 
 message UserData {
   repeated SavedTv tvs = 1;
   string selected_id = 2;
+  // Legacy: shortcuts shared by all TVs, before they were kept per TV.
   repeated SavedShortcut shortcuts = 3;
-  // False until the user first edits shortcuts; until then defaults are shown.
   bool shortcuts_initialized = 4;
   SavedSettings settings = 5;
 }

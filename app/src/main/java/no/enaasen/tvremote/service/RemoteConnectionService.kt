@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import no.enaasen.tvremote.MainActivity
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.TvRepository
+import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
 import no.enaasen.tvremote.data.model.AppShortcut
@@ -58,9 +59,9 @@ class RemoteConnectionService : Service() {
         log.info(DiagnosticCategory.Service, "Background connection started")
 
         scope.launch {
-            combine(repository.connectionState, repository.shortcuts, ::Pair).collect { (state, shortcuts) ->
+            combine(repository.connectionState, repository.apps, ::Pair).collect { (state, apps) ->
                 getSystemService(NotificationManager::class.java)
-                    .notify(NOTIFICATION_ID, buildNotification(state, shortcuts))
+                    .notify(NOTIFICATION_ID, buildNotification(state, apps.pinned))
             }
         }
         scope.launch {
@@ -140,7 +141,7 @@ class RemoteConnectionService : Service() {
 
     private fun ConnectionState.statusText(shortcuts: List<AppShortcut>): String = when (this) {
         is ConnectionState.Connected -> status.currentAppPackage
-            ?.let { pkg -> shortcuts.find { it.packageName == pkg }?.label }
+            ?.let { pkg -> shortcuts.find { it.packageName == pkg }?.label ?: AppCatalog.label(pkg) }
             ?: getString(R.string.status_connected)
         is ConnectionState.Unreachable -> getString(R.string.status_unreachable)
         is ConnectionState.PairingRequired -> getString(R.string.status_pairing_required)

@@ -16,12 +16,13 @@ import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
+import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.proto.remote.RemoteDirection
 
 data class RemoteUiState(
     val connection: ConnectionState = ConnectionState.Loading,
     val tvs: List<Tv> = emptyList(),
-    val shortcuts: List<AppShortcut> = emptyList(),
+    val apps: TvApps = TvApps(),
     val settings: RemoteSettings = RemoteSettings(),
     val receiver: ReceiverStatus = ReceiverStatus(),
 )
@@ -34,7 +35,7 @@ class RemoteViewModel @Inject constructor(
     val uiState: StateFlow<RemoteUiState> = combine(
         repository.connectionState,
         repository.tvs,
-        repository.shortcuts,
+        repository.apps,
         repository.settings,
         repository.receiverStatus,
         ::RemoteUiState,

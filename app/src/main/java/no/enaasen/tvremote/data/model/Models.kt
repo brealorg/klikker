@@ -40,6 +40,8 @@ data class RemoteSettings(
     val receiverHost: String = "",
     /** Volume change per press on the receiver, in half-dB steps (see [RECEIVER_VOLUME_STEPS]). */
     val receiverVolumeStep: Int = DEFAULT_RECEIVER_VOLUME_STEP,
+    /** Whether app names are shown under the icons in the shortcut row. */
+    val showAppNames: Boolean = true,
 ) {
     companion object {
         const val MIN_SWIPE_SENSITIVITY = 1
@@ -88,10 +90,8 @@ val ConnectionState.tv: Tv?
         ConnectionState.Loading, ConnectionState.NoTv -> null
     }
 
-val DefaultAppShortcuts = listOf(
-    AppShortcut("Netflix", "com.netflix.ninja"),
-    AppShortcut("YouTube", "com.google.android.youtube.tv"),
-    AppShortcut("Plex", "com.plexapp.android"),
-    AppShortcut("Disney+", "com.disney.disneyplus"),
-    AppShortcut("Prime Video", "com.amazon.amazonvideo.livingroom"),
+/** The selected TV's pinned shortcuts, and apps it has opened that aren't pinned. */
+data class TvApps(
+    val pinned: List<AppShortcut> = emptyList(),
+    val suggested: List<AppShortcut> = emptyList(),
 )

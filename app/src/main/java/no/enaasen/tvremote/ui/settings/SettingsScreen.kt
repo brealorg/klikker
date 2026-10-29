@@ -84,6 +84,7 @@ fun SettingsRoute(
         onFlingEnabledChange = viewModel::setFlingEnabled,
         onVolumeKeysChange = viewModel::setVolumeKeysControlTv,
         onKeepConnectedChange = viewModel::setKeepConnectedInBackground,
+        onShowAppNamesChange = viewModel::setShowAppNames,
         onReceiverHostChange = viewModel::saveReceiverHost,
         onReceiverCheckReset = viewModel::resetReceiverCheck,
         onReceiverVolumeStepChange = viewModel::setReceiverVolumeStep,
@@ -106,6 +107,7 @@ internal fun SettingsScreen(
     onFlingEnabledChange: (Boolean) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepConnectedChange: (Boolean) -> Unit,
+    onShowAppNamesChange: (Boolean) -> Unit,
     onReceiverHostChange: (String) -> Unit,
     onReceiverCheckReset: () -> Unit,
     onReceiverVolumeStepChange: (Int) -> Unit,
@@ -163,6 +165,12 @@ internal fun SettingsScreen(
                 description = stringResource(R.string.settings_volume_keys_description),
                 checked = settings.volumeKeysControlTv,
                 onCheckedChange = onVolumeKeysChange,
+            )
+            SwitchSetting(
+                title = stringResource(R.string.settings_show_app_names),
+                description = stringResource(R.string.settings_show_app_names_description),
+                checked = settings.showAppNames,
+                onCheckedChange = onShowAppNamesChange,
             )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionHeader(stringResource(R.string.settings_receiver))

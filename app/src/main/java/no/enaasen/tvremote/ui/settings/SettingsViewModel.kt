@@ -48,6 +48,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setKeepConnectedInBackground(enabled: Boolean) = update { it.copy(keepConnectedInBackground = enabled) }
 
+    fun setShowAppNames(enabled: Boolean) = update { it.copy(showAppNames = enabled) }
+
     /** Saves [host] if a receiver answers there; a blank host removes the receiver. */
     fun saveReceiverHost(host: String) {
         val trimmed = host.trim()

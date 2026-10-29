@@ -130,4 +130,10 @@
     <string name="settings_receiver_found">Funnet i nettverket</string>
     <string name="settings_receiver_checking">Sjekker …</string>
     <string name="settings_receiver_not_found">Ingen Denon- eller Marantz-receiver svarte på denne adressen</string>
+    <string name="shortcuts_pinned">Festet</string>
+    <string name="shortcuts_seen">Sett på denne TV-en</string>
+    <string name="shortcuts_seen_hint">Apper du åpner på TV-en dukker opp her og ved siden av snarveiene dine.</string>
+    <string name="pin_shortcut">Fest %1$s</string>
+    <string name="settings_show_app_names">Vis appnavn</string>
+    <string name="settings_show_app_names_description">Navn under app-ikonene nederst på fjernkontrollen</string>
 </resources>
