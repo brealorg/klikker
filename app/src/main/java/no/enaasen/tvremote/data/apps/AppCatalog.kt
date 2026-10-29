@@ -16,6 +16,14 @@ object AppCatalog {
      */
     fun iconPackages(packageName: String): List<String> = listOf(packageName) + PHONE_EDITIONS[packageName].orEmpty()
 
+    /**
+     * The link that opens the app on the TV. The remote service only starts a
+     * VIEW intent for the link, and "market://launch" isn't handled on Android
+     * TV, so apps open through links they handle themselves; others open their
+     * Play Store page, which has an Open button.
+     */
+    fun launchLink(packageName: String): String = LAUNCH_LINKS[packageName] ?: "market://details?id=$packageName"
+
     /** Every package [iconPackages] can return for a known app. */
     internal val iconPackagesOfKnownApps: Set<String>
         get() = KNOWN_APPS.keys.flatMapTo(mutableSetOf()) { iconPackages(it) }
@@ -60,6 +68,20 @@ object AppCatalog {
         "org.smarttube.stable" to "SmartTube",
         "org.videolan.vlc" to "VLC",
         "org.xbmc.kodi" to "Kodi",
+    )
+
+    // Each resolves to just this app on a SHIELD with it installed. YouTube's
+    // links are shared with other YouTube clients, which then ask which to use.
+    private val LAUNCH_LINKS = mapOf(
+        "com.edde746.plezy" to "plezy://",
+        "com.google.android.youtube.tv" to "vnd.youtube.launch://",
+        "com.netflix.ninja" to "https://www.netflix.com/browse",
+        "com.plexapp.android" to "plex://",
+        "com.spotify.tv.android" to "spotify:",
+        "com.valvesoftware.steamlink" to "steamlink://",
+        "no.nrk.tv" to "nrktv://",
+        "org.smarttube.beta" to "youtube://www.youtube.com/",
+        "org.smarttube.stable" to "youtube://www.youtube.com/",
     )
 
     private val PHONE_EDITIONS = mapOf(

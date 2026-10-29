@@ -176,7 +176,7 @@ class TvRepository @Inject constructor(
     }
 
     fun launchApp(packageName: String) {
-        activeSession?.launchAppLink("market://launch?id=$packageName")
+        activeSession?.launchAppLink(AppCatalog.launchLink(packageName))
     }
 
     fun setBackgroundServiceRunning(running: Boolean) {

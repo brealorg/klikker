@@ -37,4 +37,10 @@ class AppCatalogTest {
         val declared = Regex("""<package android:name="([^"]+)"""").findAll(manifest).map { it.groupValues[1] }.toSet()
         assertEquals(emptySet<String>(), AppCatalog.iconPackagesOfKnownApps - declared)
     }
+
+    @Test
+    fun appsOpenThroughTheirOwnLinkOrTheirStorePage() {
+        assertEquals("nrktv://", AppCatalog.launchLink("no.nrk.tv"))
+        assertEquals("market://details?id=org.jellyfin.androidtv", AppCatalog.launchLink("org.jellyfin.androidtv"))
+    }
 }
