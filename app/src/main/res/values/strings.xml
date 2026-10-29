@@ -41,15 +41,12 @@
     <string name="add_tv">Add TV</string>
     <string name="remove_tv_title">Remove %1$s?</string>
     <string name="remove_tv_message">You will need to pair again to use it.</string>
-    <string name="tv_selected">Selected</string>
     <string name="no_tv_title">No TV added</string>
     <string name="no_tv_message">Add a Google TV or Android TV device on your network to get started.</string>
 
     <!-- Shortcuts -->
     <string name="edit_shortcuts">Edit</string>
     <string name="shortcuts">Shortcuts</string>
-    <string name="add_current_app">Add current app</string>
-    <string name="add_current_app_hint">Open an app on the TV to add it here</string>
     <string name="shortcut_name">Name</string>
     <string name="remove_shortcut">Remove %1$s</string>
 
@@ -151,4 +148,8 @@
     <string name="hide_keyboard">Hide keyboard</string>
     <string name="now_open">Open on the TV</string>
     <string name="home_screen">Home screen</string>
+    <string name="rename_shortcut">Rename</string>
+    <string name="pin">Pin</string>
+    <string name="shortcut_pinned_state">Pinned</string>
+    <string name="rename_shortcut_named">Rename %1$s</string>
 </resources>

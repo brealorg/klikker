@@ -16,10 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,17 +26,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,7 +40,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -100,6 +91,7 @@ fun RemoteRoute(
             onLaunch = viewModel::launch,
             onAddShortcut = viewModel::addShortcut,
             onRemoveShortcut = viewModel::removeShortcut,
+            onRenameShortcut = viewModel::renameShortcut,
             onTextChange = viewModel::setText,
             onSubmitText = viewModel::submitText,
         ),
@@ -120,6 +112,7 @@ class RemoteActions(
     val onLaunch: (AppShortcut) -> Unit,
     val onAddShortcut: (label: String, packageName: String) -> Unit,
     val onRemoveShortcut: (AppShortcut) -> Unit,
+    val onRenameShortcut: (AppShortcut, String) -> Unit,
     val onTextChange: (String) -> Unit,
     val onSubmitText: () -> Unit,
 )
@@ -308,6 +301,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
         TvSheet(
             tvs = uiState.tvs,
             selected = tv,
+            selectedStatus = connection.statusText(),
             onSelect = { actions.onSelectTv(it); showTvSheet = false },
             onRemove = actions.onRemoveTv,
             onAddTv = { showTvSheet = false; actions.onAddTv() },
@@ -318,7 +312,8 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
         ShortcutSheet(
             apps = uiState.apps,
             currentAppPackage = status?.currentAppPackage,
-            onAdd = actions.onAddShortcut,
+            onPin = actions.onAddShortcut,
+            onRename = actions.onRenameShortcut,
             onRemove = actions.onRemoveShortcut,
             onDismiss = { showShortcutSheet = false },
         )
@@ -472,167 +467,3 @@ private fun ShortcutRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TvSheet(
-    tvs: List<Tv>,
-    selected: Tv,
-    onSelect: (Tv) -> Unit,
-    onRemove: (Tv) -> Unit,
-    onAddTv: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var pendingRemoval by remember { mutableStateOf<Tv?>(null) }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        SheetTitle(stringResource(R.string.your_tvs))
-        tvs.forEach { tv ->
-            val isSelected = tv.id == selected.id
-            ListItem(
-                onClick = { onSelect(tv) },
-                supportingContent = { Text(tv.host) },
-                leadingContent = {
-                    Icon(painterResource(if (isSelected) R.drawable.ic_tv_fill1 else R.drawable.ic_tv), contentDescription = null)
-                },
-                trailingContent = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isSelected) {
-                            Icon(painterResource(R.drawable.ic_check), stringResource(R.string.tv_selected), tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = { pendingRemoval = tv }) {
-                            Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.remove))
-                        }
-                    }
-                },
-                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) { Text(tv.name) }
-        }
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        ListItem(
-            onClick = onAddTv,
-            leadingContent = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
-            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        ) { Text(stringResource(R.string.add_tv)) }
-        Spacer(Modifier.height(16.dp))
-    }
-
-    pendingRemoval?.let { tv ->
-        AlertDialog(
-            onDismissRequest = { pendingRemoval = null },
-            title = { Text(stringResource(R.string.remove_tv_title, tv.name)) },
-            text = { Text(stringResource(R.string.remove_tv_message)) },
-            confirmButton = {
-                TextButton(onClick = { onRemove(tv); pendingRemoval = null }) { Text(stringResource(R.string.remove)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingRemoval = null }) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ShortcutSheet(
-    apps: TvApps,
-    currentAppPackage: String?,
-    onAdd: (label: String, packageName: String) -> Unit,
-    onRemove: (AppShortcut) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var adding by rememberSaveable { mutableStateOf(false) }
-    val canAddCurrent = currentAppPackage != null && apps.pinned.none { it.packageName == currentAppPackage }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            SheetTitle(stringResource(R.string.shortcuts))
-            ListItem(
-                onClick = { adding = true },
-                enabled = canAddCurrent,
-                supportingContent = {
-                    Text(currentAppPackage?.let(AppCatalog::label) ?: stringResource(R.string.add_current_app_hint))
-                },
-                leadingContent = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
-                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) { Text(stringResource(R.string.add_current_app)) }
-            if (apps.pinned.isNotEmpty()) {
-                SheetSectionHeader(stringResource(R.string.shortcuts_pinned))
-                apps.pinned.forEach { shortcut ->
-                    ListItem(
-                        supportingContent = { Text(shortcut.packageName) },
-                        trailingContent = {
-                            IconButton(onClick = { onRemove(shortcut) }) {
-                                Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.remove_shortcut, shortcut.label))
-                            }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    ) { Text(shortcut.label) }
-                }
-            }
-            SheetSectionHeader(stringResource(R.string.shortcuts_seen))
-            if (apps.suggested.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.shortcuts_seen_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-            apps.suggested.forEach { app ->
-                ListItem(
-                    supportingContent = { Text(app.packageName) },
-                    trailingContent = {
-                        IconButton(onClick = { onAdd(app.label, app.packageName) }) {
-                            Icon(painterResource(R.drawable.ic_add), stringResource(R.string.pin_shortcut, app.label))
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                ) { Text(app.label) }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-    }
-
-    if (adding && currentAppPackage != null) {
-        var label by rememberSaveable { mutableStateOf(AppCatalog.label(currentAppPackage)) }
-        AlertDialog(
-            onDismissRequest = { adding = false },
-            title = { Text(stringResource(R.string.add_current_app)) },
-            text = {
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it },
-                    label = { Text(stringResource(R.string.shortcut_name)) },
-                    supportingText = { Text(currentAppPackage) },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { onAdd(label.trim(), currentAppPackage); adding = false },
-                    enabled = label.isNotBlank(),
-                ) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { adding = false }) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    }
-}
-
-@Composable
-private fun SheetSectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun SheetTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-}

@@ -75,6 +75,10 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch { repository.addShortcut(label, packageName) }
     }
 
+    fun renameShortcut(shortcut: AppShortcut, label: String) {
+        viewModelScope.launch { repository.renameShortcut(shortcut.packageName, label) }
+    }
+
     fun removeShortcut(shortcut: AppShortcut) {
         viewModelScope.launch { repository.removeShortcut(shortcut.packageName) }
     }

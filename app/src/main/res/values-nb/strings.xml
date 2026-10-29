@@ -38,14 +38,11 @@
     <string name="add_tv">Legg til TV</string>
     <string name="remove_tv_title">Fjerne %1$s?</string>
     <string name="remove_tv_message">Du må pare på nytt for å bruke den.</string>
-    <string name="tv_selected">Valgt</string>
     <string name="no_tv_title">Ingen TV lagt til</string>
     <string name="no_tv_message">Legg til en Google TV- eller Android TV-enhet på nettverket ditt for å komme i gang.</string>
 
     <string name="edit_shortcuts">Rediger</string>
     <string name="shortcuts">Snarveier</string>
-    <string name="add_current_app">Legg til appen som er åpen</string>
-    <string name="add_current_app_hint">Åpne en app på TV-en for å legge den til her</string>
     <string name="shortcut_name">Navn</string>
     <string name="remove_shortcut">Fjern %1$s</string>
 
@@ -139,4 +136,8 @@
     <string name="hide_keyboard">Skjul tastaturet</string>
     <string name="now_open">Åpen på TV-en</string>
     <string name="home_screen">Startskjerm</string>
+    <string name="rename_shortcut">Gi nytt navn</string>
+    <string name="pin">Fest</string>
+    <string name="shortcut_pinned_state">Festet</string>
+    <string name="rename_shortcut_named">Gi %1$s nytt navn</string>
 </resources>

@@ -257,6 +257,10 @@ class TvRepository @Inject constructor(
         current.filterNot { it.packageName == packageName } + AppShortcut(label, packageName)
     }
 
+    suspend fun renameShortcut(packageName: String, label: String) = editShortcuts { current ->
+        current.map { if (it.packageName == packageName) it.copy(label = label) else it }
+    }
+
     suspend fun removeShortcut(packageName: String) = editShortcuts { current ->
         current.filterNot { it.packageName == packageName }
     }
