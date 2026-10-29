@@ -55,6 +55,8 @@ class RemoteViewModel @Inject constructor(
         },
     )
 
+    fun togglePower() = repository.togglePower()
+
     fun setText(text: String) = repository.setText(text)
 
     fun submitText() = repository.sendKey(KeyEvent.KEYCODE_ENTER)

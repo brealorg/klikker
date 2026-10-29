@@ -93,6 +93,7 @@ fun RemoteRoute(
             onRemoveShortcut = viewModel::removeShortcut,
             onRenameShortcut = viewModel::renameShortcut,
             onTextChange = viewModel::setText,
+            onTogglePower = viewModel::togglePower,
             onSubmitText = viewModel::submitText,
         ),
     )
@@ -114,6 +115,7 @@ class RemoteActions(
     val onRemoveShortcut: (AppShortcut) -> Unit,
     val onRenameShortcut: (AppShortcut, String) -> Unit,
     val onTextChange: (String) -> Unit,
+    val onTogglePower: () -> Unit,
     val onSubmitText: () -> Unit,
 )
 
@@ -221,7 +223,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                         checked = status?.isOn == true,
                         onCheckedChange = { on ->
                             haptics.performHapticFeedback(if (on) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
-                            actions.onKey(KeyEvent.KEYCODE_POWER)
+                            actions.onTogglePower()
                         },
                         enabled = connected,
                     ) {

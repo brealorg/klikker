@@ -28,12 +28,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
@@ -78,7 +80,7 @@ class TvRepository @Inject constructor(
     private val log: DiagnosticLog,
     private val receiver: DenonReceiver,
     @ApplicationContext private val context: Context,
-    @ApplicationScope scope: CoroutineScope,
+    @ApplicationScope private val scope: CoroutineScope,
 ) {
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Loading)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -173,6 +175,26 @@ class TvRepository @Inject constructor(
     /** Makes the text field focused on the TV read [text]. */
     fun setText(text: String) {
         activeSession?.setText(text)
+    }
+
+    /**
+     * Turns the TV off, or on. A SHIELD treats this remote as a game
+     * controller, and while asleep it lets controllers wake it only with the
+     * NVIDIA button ("simplified wake"), swallowing Power. So if Power doesn't
+     * wake the TV, the NVIDIA button follows; other TVs wake on Power.
+     */
+    fun togglePower() {
+        val session = activeSession ?: return
+        val wasOn = session.status.value.isOn == true
+        session.sendKey(KeyEvent.KEYCODE_POWER)
+        if (wasOn) return
+        scope.launch {
+            val woke = withTimeoutOrNull(WAKE_TIMEOUT_MS) { session.status.first { it.isOn == true } } != null
+            if (!woke && activeSession === session) {
+                log.info(DiagnosticCategory.Connection, "Power didn't wake the TV; trying the NVIDIA button")
+                session.sendKey(KeyEvent.KEYCODE_BUTTON_MODE)
+            }
+        }
     }
 
     fun launchApp(packageName: String) {
@@ -401,6 +423,7 @@ class TvRepository @Inject constructor(
         const val MAX_BACKOFF_MS = 8_000L
         const val RELOCATE_AFTER_FAILURES = 2
         const val RELOCATE_TIMEOUT_MS = 5_000L
+        const val WAKE_TIMEOUT_MS = 1_500L
         const val MAX_SEEN_APPS = 40
         const val MAX_SUGGESTED_APPS = 10
     }
