@@ -64,10 +64,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.DecimalFormat
 import kotlinx.coroutines.delay
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
+import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvStatus
 import no.enaasen.tvremote.data.model.tv
@@ -235,7 +237,11 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     .fillMaxWidth(),
             )
             NavigationKeys(enabled = connected, onKey = key)
-            VolumeControls(status = status, onKey = key, onHoldKey = actions.onHoldKey)
+            VolumeControls(
+                volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay() ?: status?.toVolumeDisplay(),
+                onKey = key,
+                onHoldKey = actions.onHoldKey,
+            )
             ShortcutRow(
                 shortcuts = uiState.shortcuts,
                 enabled = connected,
@@ -355,9 +361,25 @@ private fun RemoteKey(icon: Int, label: Int, enabled: Boolean, onClick: () -> Un
     }
 }
 
+/** What the volume row shows, from the receiver when it is connected and otherwise the TV. */
+private data class VolumeDisplay(val level: String?, val fraction: Float?, val isMuted: Boolean)
+
+private fun TvStatus.toVolumeDisplay() = VolumeDisplay(
+    level = volumeLevel?.toString(),
+    fraction = volumeLevel?.let { level -> volumeMax?.let { max -> level.toFloat() / max } },
+    isMuted = isMuted,
+)
+
+private fun ReceiverStatus.toVolumeDisplay() = VolumeDisplay(
+    // As on the receiver's own display: 0 on its scale is -80 dB.
+    level = volumeHalfSteps?.let { DecimalFormat("0.# dB").format(it / 2.0 - 80) },
+    fraction = volumeHalfSteps?.let { it.toFloat() / maxHalfSteps },
+    isMuted = isMuted,
+)
+
 @Composable
-private fun VolumeControls(status: TvStatus?, onKey: (Int) -> Unit, onHoldKey: (Int, Boolean) -> Unit) {
-    val enabled = status != null
+private fun VolumeControls(volume: VolumeDisplay?, onKey: (Int) -> Unit, onHoldKey: (Int, Boolean) -> Unit) {
+    val enabled = volume != null
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -365,13 +387,13 @@ private fun VolumeControls(status: TvStatus?, onKey: (Int) -> Unit, onHoldKey: (
     ) {
         HoldableKeyButton(R.drawable.ic_volume_down, R.string.volume_down, KeyEvent.KEYCODE_VOLUME_DOWN, enabled, onKey, onHoldKey)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val level = status?.volumeLevel
-            val max = status?.volumeMax
-            if (level != null && max != null) {
-                LinearProgressIndicator(progress = { level.toFloat() / max }, modifier = Modifier.fillMaxWidth())
+            val level = volume?.level
+            val fraction = volume?.fraction
+            if (fraction != null) {
+                LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
             }
             Text(
-                text = if (level != null) stringResource(R.string.volume_level, level) else stringResource(R.string.volume),
+                text = if (level != null) stringResource(R.string.volume_level_text, level) else stringResource(R.string.volume),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -379,7 +401,7 @@ private fun VolumeControls(status: TvStatus?, onKey: (Int) -> Unit, onHoldKey: (
         }
         HoldableKeyButton(R.drawable.ic_volume_up, R.string.volume_up, KeyEvent.KEYCODE_VOLUME_UP, enabled, onKey, onHoldKey)
         IconToggleButton(
-            checked = status?.isMuted == true,
+            checked = volume?.isMuted == true,
             onCheckedChange = { onKey(KeyEvent.KEYCODE_VOLUME_MUTE) },
             enabled = enabled,
         ) {

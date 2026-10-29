@@ -31,6 +31,10 @@ data class RemoteSettings(
     val volumeKeysControlTv: Boolean = true,
     /** Whether a foreground service keeps the TV connected while the app is closed. */
     val keepConnectedInBackground: Boolean = true,
+    /** Address of a Denon/Marantz receiver whose volume is controlled directly; blank if none. */
+    val receiverHost: String = "",
+    /** Volume change per press on the receiver, in half-dB steps (see [RECEIVER_VOLUME_STEPS]). */
+    val receiverVolumeStep: Int = DEFAULT_RECEIVER_VOLUME_STEP,
 ) {
     companion object {
         const val MIN_SWIPE_SENSITIVITY = 1
@@ -38,8 +42,19 @@ data class RemoteSettings(
         const val DEFAULT_SWIPE_SENSITIVITY = 3
         const val DEFAULT_HOLD_REPEAT_SPEED = 2
         val HOLD_REPEAT_SPEEDS = 1..3
+        const val DEFAULT_RECEIVER_VOLUME_STEP = 2
+        val RECEIVER_VOLUME_STEPS = listOf(1, 2, 4)
     }
 }
+
+/** Live state of the network-controlled receiver, see [RemoteSettings.receiverHost]. */
+data class ReceiverStatus(
+    val isConnected: Boolean = false,
+    /** In half-dB steps on the receiver's 0–98 scale, so 75 is 37.5; null until reported. */
+    val volumeHalfSteps: Int? = null,
+    val maxHalfSteps: Int = 196,
+    val isMuted: Boolean = false,
+)
 
 /** Live state reported by the TV over the control channel. */
 data class TvStatus(

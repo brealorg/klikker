@@ -200,5 +200,6 @@ private fun categoryLabel(category: DiagnosticCategory): String = stringResource
         DiagnosticCategory.Pairing -> R.string.diagnostics_category_pairing
         DiagnosticCategory.Discovery -> R.string.diagnostics_category_discovery
         DiagnosticCategory.Service -> R.string.diagnostics_category_service
+        DiagnosticCategory.Receiver -> R.string.diagnostics_category_receiver
     },
 )

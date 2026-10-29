@@ -22,7 +22,7 @@ import org.json.JSONObject
 
 enum class DiagnosticLevel { Info, Warning, Error }
 
-enum class DiagnosticCategory { App, Connection, Pairing, Discovery, Service }
+enum class DiagnosticCategory { App, Connection, Pairing, Discovery, Service, Receiver }
 
 data class DiagnosticEvent(
     val timeMillis: Long,

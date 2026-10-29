@@ -18,7 +18,6 @@
     <string name="volume_down">Volume down</string>
     <string name="mute">Mute</string>
     <string name="volume">Volume</string>
-    <string name="volume_level">Volume %1$d</string>
     <string name="status_connected">Connected</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_unreachable">Not available</string>
@@ -125,4 +124,18 @@
     <string name="settings_hold_repeat_speed_calm">Calm</string>
     <string name="settings_hold_repeat_speed_medium">Medium</string>
     <string name="settings_hold_repeat_speed_fast">Fast</string>
+
+    <!-- Audio receiver -->
+    <string name="settings_receiver">Audio receiver</string>
+    <string name="settings_receiver_host">Denon or Marantz receiver</string>
+    <string name="settings_receiver_not_set">Not set up. Volume goes through the TV box (HDMI-CEC).</string>
+    <string name="settings_receiver_connected">%1$s · Connected</string>
+    <string name="settings_receiver_not_connected">%1$s · Not connected</string>
+    <string name="settings_receiver_dialog_message">Volume and mute go straight to the receiver over your network: faster, with the actual volume shown. The receiver needs Network Standby turned on if it should respond while in standby.</string>
+    <string name="settings_receiver_volume_step">Volume change per press</string>
+    <string name="settings_receiver_volume_step_half">0.5 dB</string>
+    <string name="settings_receiver_volume_step_1">1 dB</string>
+    <string name="settings_receiver_volume_step_2">2 dB</string>
+    <string name="volume_level_text">Volume %1$s</string>
+    <string name="diagnostics_category_receiver">Receiver</string>
 </resources>

@@ -31,6 +31,10 @@ message SavedSettings {
   bool hold_repeat_disabled = 5;
   // 1 (calm) to 3 (fast); 0 means unset and maps to the default.
   int32 hold_repeat_speed = 6;
+  // Denon/Marantz receiver controlled over the network; empty if none.
+  string receiver_host = 7;
+  // Half-dB steps per volume press (1, 2 or 4); 0 means unset and maps to the default.
+  int32 receiver_volume_step = 8;
 }
 
 message UserData {

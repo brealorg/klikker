@@ -17,7 +17,6 @@
     <string name="volume_down">Volum ned</string>
     <string name="mute">Lyd av</string>
     <string name="volume">Volum</string>
-    <string name="volume_level">Volum %1$d</string>
     <string name="status_connected">Tilkoblet</string>
     <string name="status_connecting">Kobler til …</string>
     <string name="status_unreachable">Ikke tilgjengelig</string>
@@ -113,4 +112,18 @@
     <string name="settings_hold_repeat_speed_calm">Rolig</string>
     <string name="settings_hold_repeat_speed_medium">Middels</string>
     <string name="settings_hold_repeat_speed_fast">Rask</string>
+
+    <!-- Lydanlegg -->
+    <string name="settings_receiver">Lydanlegg</string>
+    <string name="settings_receiver_host">Denon- eller Marantz-receiver</string>
+    <string name="settings_receiver_not_set">Ikke satt opp. Volumet går via TV-boksen (HDMI-CEC).</string>
+    <string name="settings_receiver_connected">%1$s · Tilkoblet</string>
+    <string name="settings_receiver_not_connected">%1$s · Ikke tilkoblet</string>
+    <string name="settings_receiver_dialog_message">Volum og demping går rett til receiveren over nettverket: raskere, og det faktiske volumet vises. Receiveren må ha Network Standby slått på hvis den skal svare i standby.</string>
+    <string name="settings_receiver_volume_step">Volumendring per trykk</string>
+    <string name="settings_receiver_volume_step_half">0,5 dB</string>
+    <string name="settings_receiver_volume_step_1">1 dB</string>
+    <string name="settings_receiver_volume_step_2">2 dB</string>
+    <string name="volume_level_text">Volum %1$s</string>
+    <string name="diagnostics_category_receiver">Lydanlegg</string>
 </resources>

@@ -40,11 +40,13 @@ import no.enaasen.tvremote.data.discovery.TvDiscovery
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.DefaultAppShortcuts
+import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.protocol.PairingRequiredException
 import no.enaasen.tvremote.data.protocol.PairingSession
 import no.enaasen.tvremote.data.protocol.RemoteSession
+import no.enaasen.tvremote.data.receiver.DenonReceiver
 import no.enaasen.tvremote.data.security.ClientIdentity
 import no.enaasen.tvremote.di.ApplicationScope
 import no.enaasen.tvremote.proto.remote.RemoteDirection
@@ -61,6 +63,7 @@ import no.enaasen.tvremote.proto.userdata.savedTv
  * Single source of truth for saved TVs, shortcuts and the live connection.
  * The selected TV is kept connected while the app is in the foreground (plus
  * a short grace period, so switching apps briefly doesn't drop the link).
+ * A configured receiver is kept connected alongside it and gets volume keys.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -69,6 +72,7 @@ class TvRepository @Inject constructor(
     private val identity: ClientIdentity,
     private val discovery: TvDiscovery,
     private val log: DiagnosticLog,
+    private val receiver: DenonReceiver,
     @ApplicationContext private val context: Context,
     @ApplicationScope scope: CoroutineScope,
 ) {
@@ -95,6 +99,8 @@ class TvRepository @Inject constructor(
     val backgroundConnectionWanted: Flow<Boolean> = dataStore.data
         .map { it.tvsCount > 0 && !it.settings.backgroundConnectionDisabled }
         .distinctUntilChanged()
+
+    val receiverStatus: StateFlow<ReceiverStatus> = receiver.status
 
     /** Set by [no.enaasen.tvremote.service.RemoteConnectionService] while it runs. */
     private val backgroundServiceRunning = MutableStateFlow(false)
@@ -126,6 +132,14 @@ class TvRepository @Inject constructor(
             .distinctUntilChanged()
 
         scope.launch {
+            val receiverHost = settings.map { it.receiverHost }.distinctUntilChanged()
+            combine(keepConnected, backgroundServiceRunning, receiverHost) { foreground, service, host ->
+                host.takeIf { (foreground || service) && it.isNotBlank() }
+            }.distinctUntilChanged().collectLatest { host ->
+                if (host != null) receiver.maintain(host)
+            }
+        }
+        scope.launch {
             combine(keepConnected, backgroundServiceRunning, selectedTv, reconnectRequests) { foreground, service, tv, generation ->
                 Target(tv, foreground || service, generation)
             }.distinctUntilChanged().collectLatest { target ->
@@ -139,6 +153,7 @@ class TvRepository @Inject constructor(
     }
 
     fun sendKey(keyCode: Int, direction: RemoteDirection = RemoteDirection.SHORT) {
+        if (receiver.handleKey(keyCode, direction, settings.value.receiverVolumeStep)) return
         val session = activeSession ?: return
         val isVolumeStep = keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
         if (isVolumeStep && direction == RemoteDirection.SHORT) {
@@ -207,6 +222,8 @@ class TvRepository @Inject constructor(
                     holdRepeatSpeed = updated.holdRepeatSpeed
                     volumeKeysDisabled = !updated.volumeKeysControlTv
                     backgroundConnectionDisabled = !updated.keepConnectedInBackground
+                    receiverHost = updated.receiverHost.trim()
+                    receiverVolumeStep = updated.receiverVolumeStep
                 }
             }
         }
@@ -340,4 +357,7 @@ private fun SavedSettings.toModel() = RemoteSettings(
     flingEnabled = flingEnabled,
     volumeKeysControlTv = !volumeKeysDisabled,
     keepConnectedInBackground = !backgroundConnectionDisabled,
+    receiverHost = receiverHost,
+    receiverVolumeStep = receiverVolumeStep.takeIf { it in RemoteSettings.RECEIVER_VOLUME_STEPS }
+        ?: RemoteSettings.DEFAULT_RECEIVER_VOLUME_STEP,
 )

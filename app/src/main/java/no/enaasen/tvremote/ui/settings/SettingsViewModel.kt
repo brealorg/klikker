@@ -7,6 +7,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import no.enaasen.tvremote.data.TvRepository
+import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 
 @HiltViewModel
@@ -15,6 +16,8 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val settings: StateFlow<RemoteSettings> = repository.settings
+
+    val receiverStatus: StateFlow<ReceiverStatus> = repository.receiverStatus
 
     fun setSwipeSensitivity(sensitivity: Int) = update { it.copy(swipeSensitivity = sensitivity) }
 
@@ -27,6 +30,10 @@ class SettingsViewModel @Inject constructor(
     fun setVolumeKeysControlTv(enabled: Boolean) = update { it.copy(volumeKeysControlTv = enabled) }
 
     fun setKeepConnectedInBackground(enabled: Boolean) = update { it.copy(keepConnectedInBackground = enabled) }
+
+    fun setReceiverHost(host: String) = update { it.copy(receiverHost = host) }
+
+    fun setReceiverVolumeStep(step: Int) = update { it.copy(receiverVolumeStep = step) }
 
     private fun update(transform: (RemoteSettings) -> RemoteSettings) {
         viewModelScope.launch { repository.updateSettings(transform) }

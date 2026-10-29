@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import no.enaasen.tvremote.data.TvRepository
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
+import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.proto.remote.RemoteDirection
@@ -22,6 +23,7 @@ data class RemoteUiState(
     val tvs: List<Tv> = emptyList(),
     val shortcuts: List<AppShortcut> = emptyList(),
     val settings: RemoteSettings = RemoteSettings(),
+    val receiver: ReceiverStatus = ReceiverStatus(),
 )
 
 @HiltViewModel
@@ -34,6 +36,7 @@ class RemoteViewModel @Inject constructor(
         repository.tvs,
         repository.shortcuts,
         repository.settings,
+        repository.receiverStatus,
         ::RemoteUiState,
     ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
 
