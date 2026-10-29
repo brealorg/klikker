@@ -176,7 +176,14 @@ class TvRepository @Inject constructor(
     }
 
     fun launchApp(packageName: String) {
-        activeSession?.launchAppLink(AppCatalog.launchLink(packageName))
+        val launch = AppCatalog.launch(packageName)
+        val session = activeSession
+        log.info(
+            DiagnosticCategory.Connection,
+            if (session != null) "Opening ${AppCatalog.label(packageName)}" else "Not connected; can't open ${AppCatalog.label(packageName)}",
+            detail = "${launch.link} (${launch.packageName ?: "any app"})",
+        )
+        session?.launchAppLink(launch.link, launch.packageName)
     }
 
     fun setBackgroundServiceRunning(running: Boolean) {

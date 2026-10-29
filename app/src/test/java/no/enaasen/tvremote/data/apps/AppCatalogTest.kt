@@ -40,7 +40,7 @@ class AppCatalogTest {
 
     @Test
     fun appsOpenThroughTheirOwnLinkOrTheirStorePage() {
-        assertEquals("nrktv://", AppCatalog.launchLink("no.nrk.tv"))
-        assertEquals("market://details?id=org.jellyfin.androidtv", AppCatalog.launchLink("org.jellyfin.androidtv"))
+        assertEquals(AppLaunch("nrktv://", "no.nrk.tv"), AppCatalog.launch("no.nrk.tv"))
+        assertEquals(AppLaunch("market://details?id=org.jellyfin.androidtv", null), AppCatalog.launch("org.jellyfin.androidtv"))
     }
 }

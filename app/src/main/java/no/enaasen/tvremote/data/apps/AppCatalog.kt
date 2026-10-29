@@ -5,6 +5,9 @@ package no.enaasen.tvremote.data.apps
  * list installed apps, so apps are learned as the TV opens them; this turns
  * "no.nrk.tv" into "NRK TV" and keeps home screens and system UI out.
  */
+/** A link for the TV to open, in [packageName] only when that is set. */
+data class AppLaunch(val link: String, val packageName: String?)
+
 object AppCatalog {
 
     fun label(packageName: String): String = KNOWN_APPS[packageName] ?: derivedLabel(packageName)
@@ -17,12 +20,14 @@ object AppCatalog {
     fun iconPackages(packageName: String): List<String> = listOf(packageName) + PHONE_EDITIONS[packageName].orEmpty()
 
     /**
-     * The link that opens the app on the TV. The remote service only starts a
-     * VIEW intent for the link, and "market://launch" isn't handled on Android
-     * TV, so apps open through links they handle themselves; others open their
-     * Play Store page, which has an Open button.
+     * How to open the app on the TV. The remote service starts a VIEW intent
+     * for a link (limited to a package, if given), and "market://launch" isn't
+     * handled on Android TV, so apps open through links they handle themselves;
+     * others open their Play Store page, which has an Open button.
      */
-    fun launchLink(packageName: String): String = LAUNCH_LINKS[packageName] ?: "market://details?id=$packageName"
+    fun launch(packageName: String): AppLaunch = LAUNCH_LINKS[packageName]
+        ?.let { AppLaunch(it, packageName) }
+        ?: AppLaunch("market://details?id=$packageName", packageName = null)
 
     /** Every package [iconPackages] can return for a known app. */
     internal val iconPackagesOfKnownApps: Set<String>

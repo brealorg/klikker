@@ -99,8 +99,13 @@ class RemoteSession private constructor(
         wantedText.value = text
     }
 
-    fun launchAppLink(link: String) = send(
-        remoteMessage { remoteAppLinkLaunchRequest = remoteAppLinkLaunchRequest { appLink = link } },
+    fun launchAppLink(link: String, packageName: String?) = send(
+        remoteMessage {
+            remoteAppLinkLaunchRequest = remoteAppLinkLaunchRequest {
+                appLink = link
+                packageName?.let { this.packageName = it }
+            }
+        },
     )
 
     suspend fun run(): Nothing = coroutineScope {

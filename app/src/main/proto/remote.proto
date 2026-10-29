@@ -122,6 +122,9 @@ message RemoteSetVolumeLevel {
 
 message RemoteAppLinkLaunchRequest {
   string app_link = 1;
+  // When set, the TV opens app_link only in this app, or this app's Play
+  // Store page if it isn't installed.
+  string package_name = 2;
 }
 
 message RemoteMessage {
