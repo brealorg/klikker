@@ -48,6 +48,9 @@ class DenonReceiver @Inject constructor(
     @Volatile
     private var commands: Channel<String>? = null
 
+    @Volatile
+    private var connectedHost: String? = null
+
     // The receiver echoes every volume it is set to. Echoes of earlier taps
     // arriving after a newer one would make the shown volume jump back, and
     // the next tap would start from the stale value, so they are ignored briefly.
@@ -75,6 +78,28 @@ class DenonReceiver @Inject constructor(
             }
         } finally {
             stopRepeat()
+        }
+    }
+
+    /** Whether a Denon/Marantz receiver answers at [host]. */
+    suspend fun probe(host: String): Boolean {
+        // The receiver accepts only one control connection, so don't open a second.
+        if (connectedHost == host) return true
+        return withContext(Dispatchers.IO) {
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(host, DenonProtocol.PORT), CONNECT_TIMEOUT_MS)
+                    socket.soTimeout = PROBE_TIMEOUT_MS
+                    socket.outputStream.write("MV?\r".toByteArray(Charsets.US_ASCII))
+                    val input = BufferedInputStream(socket.inputStream)
+                    // Other status lines may arrive first; a timeout ends the wait.
+                    generateSequence { input.readLine() }.any { line ->
+                        line.startsWith("MV") && DenonProtocol.parseVolume(line.removePrefix("MV")) != null
+                    }
+                }
+            } catch (_: IOException) {
+                false
+            }
         }
     }
 
@@ -169,6 +194,7 @@ class DenonReceiver @Inject constructor(
                 }
             } finally {
                 commands = null
+                connectedHost = null
                 outbox.close()
                 _status.value = ReceiverStatus()
             }
@@ -177,20 +203,12 @@ class DenonReceiver @Inject constructor(
 
     private fun readLoop(input: InputStream, outbox: Channel<String>, host: String, onConnected: () -> Unit): Nothing {
         val reader = BufferedInputStream(input)
-        val line = StringBuilder()
         var connected = false
         while (true) {
-            val byte = reader.read()
-            if (byte < 0) throw EOFException("Receiver closed the connection")
-            if (byte != '\r'.code) {
-                line.append(byte.toChar())
-                continue
-            }
-            val text = line.toString()
-            line.clear()
-            if (handle(text) && !connected) {
+            if (handle(reader.readLine()) && !connected) {
                 connected = true
                 commands = outbox
+                connectedHost = host
                 _status.update { it.copy(isConnected = true) }
                 log.info(DiagnosticCategory.Receiver, "Connected to receiver at $host")
                 onConnected()
@@ -215,8 +233,19 @@ class DenonReceiver @Inject constructor(
         return _status.value.volumeHalfSteps != null
     }
 
+    private fun BufferedInputStream.readLine(): String {
+        val line = StringBuilder()
+        while (true) {
+            val byte = read()
+            if (byte < 0) throw EOFException("Receiver closed the connection")
+            if (byte == '\r'.code) return line.toString()
+            line.append(byte.toChar())
+        }
+    }
+
     private companion object {
         const val CONNECT_TIMEOUT_MS = 3_000
+        const val PROBE_TIMEOUT_MS = 2_000
         const val POLL_INTERVAL_MS = 20_000L
         const val READ_TIMEOUT_MS = 45_000
         const val COMMAND_INTERVAL_MS = 60L

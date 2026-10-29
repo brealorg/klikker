@@ -16,17 +16,19 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.DiscoveredTv
 
 class DiscoveryException(errorCode: Int) : Exception("NSD discovery failed: $errorCode")
 
-/** Finds TVs advertising the Android TV Remote service over mDNS. */
+/** Finds TVs advertising the Android TV Remote service, and Denon/Marantz receivers, over mDNS. */
 @Singleton
 class TvDiscovery @Inject constructor(@ApplicationContext context: Context) {
 
@@ -35,7 +37,18 @@ class TvDiscovery @Inject constructor(@ApplicationContext context: Context) {
     // Before API 34 NsdManager can only resolve one service at a time.
     private val resolveMutex = Mutex()
 
-    fun discover(): Flow<List<DiscoveredTv>> = callbackFlow {
+    fun discover(): Flow<List<DiscoveredTv>> = discover(TV_SERVICE_TYPE)
+
+    /** Receivers advertise their web interface as e.g. "DENON:[AVR-1912]". */
+    fun discoverReceivers(): Flow<List<DiscoveredReceiver>> =
+        discover(HTTP_SERVICE_TYPE) { RECEIVER_NAME.matches(it) }.map { services ->
+            services.map { service ->
+                val (brand, model) = RECEIVER_NAME.find(service.name)!!.destructured
+                DiscoveredReceiver("${brand.lowercase().replaceFirstChar { it.uppercase() }} $model", service.host)
+            }
+        }
+
+    private fun discover(serviceType: String, accept: (String) -> Boolean = { true }): Flow<List<DiscoveredTv>> = callbackFlow {
         val found = ConcurrentHashMap<String, DiscoveredTv>()
         fun publish() = trySend(found.values.sortedBy { it.name })
 
@@ -47,6 +60,7 @@ class TvDiscovery @Inject constructor(@ApplicationContext context: Context) {
                 close(DiscoveryException(errorCode))
             }
             override fun onServiceFound(service: NsdServiceInfo) {
+                if (!accept(service.serviceName)) return
                 launch {
                     resolve(service)?.let {
                         found[it.name] = it
@@ -60,7 +74,7 @@ class TvDiscovery @Inject constructor(@ApplicationContext context: Context) {
         }
 
         publish()
-        nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        nsd.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
         awaitClose { runCatching { nsd.stopServiceDiscovery(listener) } }
     }
 
@@ -118,7 +132,9 @@ class TvDiscovery @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private companion object {
-        const val SERVICE_TYPE = "_androidtvremote2._tcp"
+        const val TV_SERVICE_TYPE = "_androidtvremote2._tcp"
+        const val HTTP_SERVICE_TYPE = "_http._tcp"
+        val RECEIVER_NAME = Regex("""^(DENON|MARANTZ):\[(.+)]$""", RegexOption.IGNORE_CASE)
         const val RESOLVE_TIMEOUT_MS = 5_000L
     }
 }

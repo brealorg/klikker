@@ -138,4 +138,8 @@
     <string name="settings_receiver_volume_step_2">2 dB</string>
     <string name="volume_level_text">Volume %1$s</string>
     <string name="diagnostics_category_receiver">Receiver</string>
+    <string name="settings_receiver_searching">Searching your network…</string>
+    <string name="settings_receiver_found">Found on your network</string>
+    <string name="settings_receiver_checking">Checking…</string>
+    <string name="settings_receiver_not_found">No Denon or Marantz receiver answered at this address</string>
 </resources>

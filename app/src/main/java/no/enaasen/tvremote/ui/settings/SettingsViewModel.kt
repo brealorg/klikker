@@ -4,11 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import no.enaasen.tvremote.data.TvRepository
+import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
+
+/** Progress of checking a receiver address before it is saved. */
+enum class ReceiverCheck { Idle, Checking, NotFound, Saved }
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -18,6 +27,14 @@ class SettingsViewModel @Inject constructor(
     val settings: StateFlow<RemoteSettings> = repository.settings
 
     val receiverStatus: StateFlow<ReceiverStatus> = repository.receiverStatus
+
+    /** Searches the network only while collected, i.e. while the receiver dialog is open. */
+    val discoveredReceivers: StateFlow<List<DiscoveredReceiver>?> = repository.discoverReceivers()
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _receiverCheck = MutableStateFlow(ReceiverCheck.Idle)
+    val receiverCheck: StateFlow<ReceiverCheck> = _receiverCheck.asStateFlow()
 
     fun setSwipeSensitivity(sensitivity: Int) = update { it.copy(swipeSensitivity = sensitivity) }
 
@@ -31,7 +48,25 @@ class SettingsViewModel @Inject constructor(
 
     fun setKeepConnectedInBackground(enabled: Boolean) = update { it.copy(keepConnectedInBackground = enabled) }
 
-    fun setReceiverHost(host: String) = update { it.copy(receiverHost = host) }
+    /** Saves [host] if a receiver answers there; a blank host removes the receiver. */
+    fun saveReceiverHost(host: String) {
+        val trimmed = host.trim()
+        viewModelScope.launch {
+            if (trimmed.isNotEmpty()) {
+                _receiverCheck.value = ReceiverCheck.Checking
+                if (!repository.probeReceiver(trimmed)) {
+                    _receiverCheck.value = ReceiverCheck.NotFound
+                    return@launch
+                }
+            }
+            repository.updateSettings { it.copy(receiverHost = trimmed) }
+            _receiverCheck.value = ReceiverCheck.Saved
+        }
+    }
+
+    fun resetReceiverCheck() {
+        _receiverCheck.value = ReceiverCheck.Idle
+    }
 
     fun setReceiverVolumeStep(step: Int) = update { it.copy(receiverVolumeStep = step) }
 

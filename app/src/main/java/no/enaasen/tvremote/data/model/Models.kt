@@ -13,6 +13,11 @@ data class DiscoveredTv(
     val port: Int,
 )
 
+data class DiscoveredReceiver(
+    val name: String,
+    val host: String,
+)
+
 data class AppShortcut(
     val label: String,
     val packageName: String,

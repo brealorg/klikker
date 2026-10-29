@@ -40,6 +40,7 @@ import no.enaasen.tvremote.data.discovery.TvDiscovery
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.DefaultAppShortcuts
+import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
@@ -174,6 +175,10 @@ class TvRepository @Inject constructor(
     fun reconnect() {
         reconnectRequests.value++
     }
+
+    fun discoverReceivers(): Flow<List<DiscoveredReceiver>> = discovery.discoverReceivers()
+
+    suspend fun probeReceiver(host: String): Boolean = receiver.probe(host)
 
     fun newPairingSession(host: String): PairingSession = PairingSession(identity, host)
 

@@ -126,4 +126,8 @@
     <string name="settings_receiver_volume_step_2">2 dB</string>
     <string name="volume_level_text">Volum %1$s</string>
     <string name="diagnostics_category_receiver">Lydanlegg</string>
+    <string name="settings_receiver_searching">Søker i nettverket …</string>
+    <string name="settings_receiver_found">Funnet i nettverket</string>
+    <string name="settings_receiver_checking">Sjekker …</string>
+    <string name="settings_receiver_not_found">Ingen Denon- eller Marantz-receiver svarte på denne adressen</string>
 </resources>

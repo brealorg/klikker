@@ -7,17 +7,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -31,13 +34,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -53,6 +59,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToInt
 import no.enaasen.tvremote.R
+import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.RemoteSettings
 
 @Composable
@@ -63,9 +70,12 @@ fun SettingsRoute(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val receiverStatus by viewModel.receiverStatus.collectAsStateWithLifecycle()
+    val receiverCheck by viewModel.receiverCheck.collectAsStateWithLifecycle()
     SettingsScreen(
         settings = settings,
         receiverConnected = receiverStatus.isConnected,
+        receiverCheck = receiverCheck,
+        discoveredReceivers = { viewModel.discoveredReceivers.collectAsStateWithLifecycle().value },
         onBack = onBack,
         onOpenDiagnostics = onOpenDiagnostics,
         onHoldToRepeatChange = viewModel::setHoldToRepeat,
@@ -74,7 +84,8 @@ fun SettingsRoute(
         onFlingEnabledChange = viewModel::setFlingEnabled,
         onVolumeKeysChange = viewModel::setVolumeKeysControlTv,
         onKeepConnectedChange = viewModel::setKeepConnectedInBackground,
-        onReceiverHostChange = viewModel::setReceiverHost,
+        onReceiverHostChange = viewModel::saveReceiverHost,
+        onReceiverCheckReset = viewModel::resetReceiverCheck,
         onReceiverVolumeStepChange = viewModel::setReceiverVolumeStep,
     )
 }
@@ -84,6 +95,9 @@ fun SettingsRoute(
 internal fun SettingsScreen(
     settings: RemoteSettings,
     receiverConnected: Boolean,
+    receiverCheck: ReceiverCheck,
+    /** Read only while the receiver dialog is shown, so the network is searched only then. */
+    discoveredReceivers: @Composable () -> List<DiscoveredReceiver>?,
     onBack: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onHoldToRepeatChange: (Boolean) -> Unit,
@@ -93,6 +107,7 @@ internal fun SettingsScreen(
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepConnectedChange: (Boolean) -> Unit,
     onReceiverHostChange: (String) -> Unit,
+    onReceiverCheckReset: () -> Unit,
     onReceiverVolumeStepChange: (Int) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -154,7 +169,10 @@ internal fun SettingsScreen(
             ReceiverHostSetting(
                 host = settings.receiverHost,
                 connected = receiverConnected,
-                onChange = onReceiverHostChange,
+                check = receiverCheck,
+                discoveredReceivers = discoveredReceivers,
+                onSave = onReceiverHostChange,
+                onCheckReset = onReceiverCheckReset,
             )
             ReceiverVolumeStepSetting(
                 step = settings.receiverVolumeStep,
@@ -253,7 +271,14 @@ private fun HoldRepeatSpeedSetting(speed: Int, enabled: Boolean, onChange: (Int)
 }
 
 @Composable
-private fun ReceiverHostSetting(host: String, connected: Boolean, onChange: (String) -> Unit) {
+private fun ReceiverHostSetting(
+    host: String,
+    connected: Boolean,
+    check: ReceiverCheck,
+    discoveredReceivers: @Composable () -> List<DiscoveredReceiver>?,
+    onSave: (String) -> Unit,
+    onCheckReset: () -> Unit,
+) {
     var editing by rememberSaveable { mutableStateOf(false) }
     ListItem(
         headlineContent = { Text(stringResource(R.string.settings_receiver_host)) },
@@ -266,38 +291,115 @@ private fun ReceiverHostSetting(host: String, connected: Boolean, onChange: (Str
                 },
             )
         },
-        modifier = Modifier.clickable { editing = true },
+        modifier = Modifier.clickable {
+            onCheckReset()
+            editing = true
+        },
     )
     if (editing) {
-        var input by rememberSaveable { mutableStateOf(host) }
-        AlertDialog(
-            onDismissRequest = { editing = false },
-            title = { Text(stringResource(R.string.settings_receiver_host)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(stringResource(R.string.settings_receiver_dialog_message))
-                    OutlinedTextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        label = { Text(stringResource(R.string.ip_address)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { onChange(input); editing = false }),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onChange(input); editing = false }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                if (host.isNotBlank()) {
-                    TextButton(onClick = { onChange(""); editing = false }) { Text(stringResource(R.string.remove)) }
-                } else {
-                    TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) }
-                }
-            },
+        LaunchedEffect(check) {
+            if (check == ReceiverCheck.Saved) {
+                editing = false
+                onCheckReset()
+            }
+        }
+        ReceiverDialog(
+            host = host,
+            check = check,
+            discovered = discoveredReceivers(),
+            onSave = onSave,
+            onCheckReset = onCheckReset,
+            onDismiss = { editing = false },
         )
     }
+}
+
+@Composable
+private fun ReceiverDialog(
+    host: String,
+    check: ReceiverCheck,
+    discovered: List<DiscoveredReceiver>?,
+    onSave: (String) -> Unit,
+    onCheckReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var input by rememberSaveable { mutableStateOf(host) }
+    val checking = check == ReceiverCheck.Checking
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_receiver_host)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(stringResource(R.string.settings_receiver_dialog_message))
+                if (discovered.isNullOrEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(
+                            stringResource(R.string.settings_receiver_searching),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Column {
+                        Text(
+                            stringResource(R.string.settings_receiver_found),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        discovered.forEach { receiver ->
+                            ListItem(
+                                headlineContent = { Text(receiver.name) },
+                                supportingContent = { Text(receiver.host) },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier.clickable(enabled = !checking) {
+                                    input = receiver.host
+                                    onSave(receiver.host)
+                                },
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        input = it
+                        if (check == ReceiverCheck.NotFound) onCheckReset()
+                    },
+                    label = { Text(stringResource(R.string.ip_address)) },
+                    singleLine = true,
+                    enabled = !checking,
+                    isError = check == ReceiverCheck.NotFound,
+                    supportingText = when (check) {
+                        ReceiverCheck.Checking -> {
+                            { Text(stringResource(R.string.settings_receiver_checking)) }
+                        }
+                        ReceiverCheck.NotFound -> {
+                            { Text(stringResource(R.string.settings_receiver_not_found)) }
+                        }
+                        else -> null
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { if (input.isNotBlank()) onSave(input) }),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(input) }, enabled = !checking && input.isNotBlank()) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            if (host.isNotBlank()) {
+                TextButton(onClick = { onSave("") }, enabled = !checking) { Text(stringResource(R.string.remove)) }
+            } else {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
