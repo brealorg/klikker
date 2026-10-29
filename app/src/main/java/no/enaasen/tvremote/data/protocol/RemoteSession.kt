@@ -1,0 +1,195 @@
+package no.enaasen.tvremote.data.protocol
+
+import android.os.SystemClock
+import java.io.Closeable
+import java.io.EOFException
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLSocket
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
+import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
+import no.enaasen.tvremote.data.model.TvStatus
+import no.enaasen.tvremote.data.security.ClientIdentity
+import no.enaasen.tvremote.data.security.PinningTrustManager
+import no.enaasen.tvremote.proto.remote.RemoteDeviceInfo
+import no.enaasen.tvremote.proto.remote.RemoteDirection
+import no.enaasen.tvremote.proto.remote.RemoteMessage
+import no.enaasen.tvremote.proto.remote.remoteAppLinkLaunchRequest
+import no.enaasen.tvremote.proto.remote.remoteConfigure
+import no.enaasen.tvremote.proto.remote.remoteKeyInject
+import no.enaasen.tvremote.proto.remote.remoteMessage
+import no.enaasen.tvremote.proto.remote.remotePingResponse
+import no.enaasen.tvremote.proto.remote.remoteSetActive
+
+/**
+ * An open control channel to a paired TV. Call [run] to service the
+ * connection; it only returns by throwing, when the connection ends.
+ */
+class RemoteSession private constructor(
+    private val socket: SSLSocket,
+    private val deviceInfo: RemoteDeviceInfo,
+    private val log: DiagnosticLog,
+) : Closeable {
+
+    private val outbox = Channel<RemoteMessage>(Channel.UNLIMITED)
+
+    // Volume often travels on to the TV over HDMI-CEC, which drops presses that
+    // arrive faster than it can handle them, so volume taps are queued and paced.
+    private val volumeTaps = Channel<Int>(MAX_QUEUED_VOLUME_TAPS, BufferOverflow.DROP_LATEST)
+
+    private val _isReady = MutableStateFlow(false)
+    /** True once the TV has accepted our configuration and will act on keys. */
+    val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
+
+    private val _status = MutableStateFlow(TvStatus())
+    val status: StateFlow<TvStatus> = _status.asStateFlow()
+
+    fun sendKey(keyCode: Int, direction: RemoteDirection = RemoteDirection.SHORT) = send(
+        remoteMessage {
+            remoteKeyInject = remoteKeyInject {
+                this.keyCode = keyCode
+                this.direction = direction
+            }
+        },
+    )
+
+    /** Queues a single volume key press; see [volumeTaps]. */
+    fun sendVolumeTap(keyCode: Int) {
+        volumeTaps.trySend(keyCode)
+    }
+
+    fun launchAppLink(link: String) = send(
+        remoteMessage { remoteAppLinkLaunchRequest = remoteAppLinkLaunchRequest { appLink = link } },
+    )
+
+    suspend fun run(): Nothing = coroutineScope {
+        // Blocking socket reads ignore cancellation; closing the socket unblocks them.
+        launch {
+            try {
+                awaitCancellation()
+            } finally {
+                close()
+            }
+        }
+        launch {
+            for (keyCode in volumeTaps) {
+                sendKey(keyCode)
+                delay(VOLUME_TAP_INTERVAL_MS)
+            }
+        }
+        launch(Dispatchers.IO) {
+            val output = socket.outputStream
+            for (message in outbox) message.writeFramedTo(output)
+        }
+        withContext(Dispatchers.IO) { readLoop() }
+    }
+
+    override fun close() {
+        outbox.close()
+        volumeTaps.close()
+        runCatching { socket.close() }
+    }
+
+    private fun send(message: RemoteMessage) {
+        outbox.trySend(message)
+    }
+
+    private fun readLoop(): Nothing {
+        val input = socket.inputStream
+        var receivedAny = false
+        var lastMessageAt = SystemClock.elapsedRealtime()
+        while (true) {
+            // With TLS 1.3 the TV rejects an unknown client certificate only
+            // after the handshake, so a failure before the first message
+            // means we are not paired.
+            val message = try {
+                RemoteMessage.parseDelimitedFrom(input)
+            } catch (e: SSLException) {
+                throw if (receivedAny) e else PairingRequiredException(e)
+            } ?: throw if (receivedAny) EOFException("TV closed the connection") else PairingRequiredException()
+            receivedAny = true
+            val now = SystemClock.elapsedRealtime()
+            // The TV pings every ~5 s; a long gap explains later timeouts.
+            if (now - lastMessageAt > SILENCE_WARNING_MS) {
+                log.warning(DiagnosticCategory.Connection, "TV was silent for ${(now - lastMessageAt) / 1000} s")
+            }
+            lastMessageAt = now
+            handle(message)
+        }
+    }
+
+    private fun handle(message: RemoteMessage) {
+        when {
+            message.hasRemoteConfigure() -> send(
+                remoteMessage {
+                    remoteConfigure = remoteConfigure {
+                        code1 = FEATURES
+                        deviceInfo = this@RemoteSession.deviceInfo
+                    }
+                },
+            )
+            message.hasRemoteSetActive() -> {
+                send(remoteMessage { remoteSetActive = remoteSetActive { active = FEATURES } })
+                _isReady.value = true
+            }
+            message.hasRemotePingRequest() -> send(
+                remoteMessage { remotePingResponse = remotePingResponse { val1 = message.remotePingRequest.val1 } },
+            )
+            message.hasRemoteStart() -> _status.update { it.copy(isOn = message.remoteStart.started) }
+            message.hasRemoteSetVolumeLevel() -> with(message.remoteSetVolumeLevel) {
+                // With HDMI-CEC volume passthrough (e.g. SHIELD) the device reports a fixed 0
+                // rather than the TV's volume; treat that as unknown instead of showing it.
+                val known = volumeLevel > 0 || volumeMuted
+                _status.update {
+                    it.copy(
+                        volumeLevel = volumeLevel.takeIf { known },
+                        volumeMax = volumeMax.takeIf { known && volumeMax > 0 },
+                        isMuted = volumeMuted,
+                    )
+                }
+            }
+            message.hasRemoteImeKeyInject() -> {
+                val appPackage = message.remoteImeKeyInject.appInfo.appPackage
+                if (appPackage.isNotEmpty()) _status.update { it.copy(currentAppPackage = appPackage) }
+            }
+        }
+    }
+
+    companion object {
+        const val DEFAULT_PORT = 6466
+        private const val SILENCE_WARNING_MS = 12_000L
+        private const val VOLUME_TAP_INTERVAL_MS = 400L
+        private const val MAX_QUEUED_VOLUME_TAPS = 10
+
+        // Bit flags: ping(1) | key(2) | ime(4) | power(32) | volume(64) | app link(512).
+        private const val FEATURES = 1 or 2 or 4 or 32 or 64 or 512
+
+        suspend fun open(
+            identity: ClientIdentity,
+            host: String,
+            port: Int,
+            pinnedCertificateSha256: ByteArray,
+            deviceInfo: RemoteDeviceInfo,
+            log: DiagnosticLog,
+        ): RemoteSession = withContext(Dispatchers.IO) {
+            val socket = try {
+                identity.sslContext(PinningTrustManager(pinnedCertificateSha256)).openSocket(host, port)
+            } catch (e: SSLHandshakeException) {
+                throw PairingRequiredException(e)
+            }
+            RemoteSession(socket, deviceInfo, log)
+        }
+    }
+}

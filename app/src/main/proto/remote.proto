@@ -1,0 +1,103 @@
+// Android TV Remote Protocol v2 control channel (port 6466).
+// Only the messages this app uses are declared; unknown fields are ignored
+// by protobuf, so the TV can send more than we model.
+syntax = "proto3";
+
+package remote;
+
+option java_package = "no.enaasen.tvremote.proto.remote";
+option java_multiple_files = true;
+
+message RemoteDeviceInfo {
+  string model = 1;
+  string vendor = 2;
+  int32 unknown1 = 3;
+  string unknown2 = 4;
+  string package_name = 5;
+  string app_version = 6;
+}
+
+message RemoteConfigure {
+  int32 code1 = 1;
+  RemoteDeviceInfo device_info = 2;
+}
+
+message RemoteSetActive {
+  int32 active = 1;
+}
+
+message RemoteError {
+  bool value = 1;
+  RemoteMessage message = 2;
+}
+
+message RemotePingRequest {
+  int32 val1 = 1;
+  int32 val2 = 2;
+}
+
+message RemotePingResponse {
+  int32 val1 = 1;
+}
+
+enum RemoteDirection {
+  UNKNOWN_DIRECTION = 0;
+  START_LONG = 1;
+  END_LONG = 2;
+  SHORT = 3;
+}
+
+message RemoteKeyInject {
+  // Android KeyEvent keycode; declared as int32 (wire-compatible with the
+  // service's enum) so android.view.KeyEvent constants can be used directly.
+  int32 key_code = 1;
+  RemoteDirection direction = 2;
+}
+
+message RemoteAppInfo {
+  int32 counter = 1;
+  int32 int2 = 2;
+  int32 int3 = 3;
+  string int4 = 4;
+  int32 int7 = 7;
+  int32 int8 = 8;
+  string label = 10;
+  string app_package = 12;
+  int32 int13 = 13;
+}
+
+message RemoteImeKeyInject {
+  RemoteAppInfo app_info = 1;
+}
+
+message RemoteStart {
+  bool started = 1;
+}
+
+message RemoteSetVolumeLevel {
+  uint32 unknown1 = 1;
+  uint32 unknown2 = 2;
+  string player_model = 3;
+  uint32 unknown4 = 4;
+  uint32 unknown5 = 5;
+  uint32 volume_max = 6;
+  uint32 volume_level = 7;
+  bool volume_muted = 8;
+}
+
+message RemoteAppLinkLaunchRequest {
+  string app_link = 1;
+}
+
+message RemoteMessage {
+  RemoteConfigure remote_configure = 1;
+  RemoteSetActive remote_set_active = 2;
+  RemoteError remote_error = 3;
+  RemotePingRequest remote_ping_request = 8;
+  RemotePingResponse remote_ping_response = 9;
+  RemoteKeyInject remote_key_inject = 10;
+  RemoteImeKeyInject remote_ime_key_inject = 20;
+  RemoteStart remote_start = 40;
+  RemoteSetVolumeLevel remote_set_volume_level = 50;
+  RemoteAppLinkLaunchRequest remote_app_link_launch_request = 90;
+}

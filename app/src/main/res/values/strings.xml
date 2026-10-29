@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Remote</string>
+
+    <string name="navigate_back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="remove">Remove</string>
+    <string name="try_again">Try again</string>
+
+    <!-- Remote -->
+    <string name="switch_tv">Switch TV</string>
+    <string name="power">Power</string>
+    <string name="key_back">Back</string>
+    <string name="key_home">Home</string>
+    <string name="key_play_pause">Play or pause</string>
+    <string name="volume_up">Volume up</string>
+    <string name="volume_down">Volume down</string>
+    <string name="mute">Mute</string>
+    <string name="volume">Volume</string>
+    <string name="volume_level">Volume %1$d</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_unreachable">Not available</string>
+    <string name="status_pairing_required">Needs pairing</string>
+    <string name="unreachable_message">Can\'t reach %1$s. Make sure it is on and on the same network as this phone.</string>
+    <string name="pairing_required_message">%1$s no longer recognises this phone. Pair again to continue.</string>
+    <string name="pair_again">Pair again</string>
+
+    <!-- Swipe pad -->
+    <string name="swipe_pad">Touchpad</string>
+    <string name="swipe_pad_hint">Swipe to move · tap to select</string>
+    <string name="swipe_pad_state_disabled">Not connected</string>
+    <string name="direction_up">Up</string>
+    <string name="direction_down">Down</string>
+    <string name="direction_left">Left</string>
+    <string name="direction_right">Right</string>
+    <string name="select">Select</string>
+
+    <!-- TV list -->
+    <string name="your_tvs">Your TVs</string>
+    <string name="add_tv">Add TV</string>
+    <string name="remove_tv_title">Remove %1$s?</string>
+    <string name="remove_tv_message">You will need to pair again to use it.</string>
+    <string name="tv_selected">Selected</string>
+    <string name="no_tv_title">No TV added</string>
+    <string name="no_tv_message">Add a Google TV or Android TV device on your network to get started.</string>
+
+    <!-- Shortcuts -->
+    <string name="edit_shortcuts">Edit</string>
+    <string name="shortcuts">Shortcuts</string>
+    <string name="add_current_app">Add current app</string>
+    <string name="add_current_app_hint">Open an app on the TV to add it here</string>
+    <string name="shortcut_name">Name</string>
+    <string name="remove_shortcut">Remove %1$s</string>
+
+    <!-- Add TV -->
+    <string name="found_on_network">Found on your network</string>
+    <string name="searching_for_tvs">Searching for TVs…</string>
+    <string name="already_added">Already added</string>
+    <string name="enter_ip">Enter IP address</string>
+    <string name="enter_ip_hint">If your TV doesn\'t show up</string>
+    <string name="ip_address">IP address</string>
+    <string name="next">Next</string>
+
+    <!-- Pairing -->
+    <string name="pairing_title">Pair %1$s</string>
+    <string name="pairing_connecting">Connecting to the TV…</string>
+    <string name="pairing_enter_code">Enter the code shown on your TV</string>
+    <string name="pairing_code">Code</string>
+    <string name="pairing_wrong_code">That code doesn\'t match. Check the TV and try again.</string>
+    <string name="pairing_failed">Couldn\'t pair with the TV. Make sure it is on and on the same network.</string>
+    <string name="pair">Pair</string>
+
+    <!-- Local network permission -->
+    <string name="permission_title">Allow local network access</string>
+    <string name="permission_message">TV Remote talks directly to your TV over your home network. Nothing leaves your network.</string>
+    <string name="permission_allow">Allow</string>
+    <string name="permission_open_settings">Open settings</string>
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="settings_touchpad">Touchpad</string>
+    <string name="settings_general">General</string>
+    <string name="settings_sensitivity">Swipe sensitivity</string>
+    <string name="settings_sensitivity_1">Very low</string>
+    <string name="settings_sensitivity_2">Low</string>
+    <string name="settings_sensitivity_3">Medium</string>
+    <string name="settings_sensitivity_4">High</string>
+    <string name="settings_sensitivity_5">Very high</string>
+    <string name="settings_sensitivity_description">How far you swipe for each step after the first</string>
+    <string name="settings_fling">Extra steps on fast swipes</string>
+    <string name="settings_fling_description">A quick flick moves up to three extra steps</string>
+    <string name="settings_volume_keys">Volume buttons control the TV</string>
+    <string name="settings_volume_keys_description">While the app is open and connected</string>
+    <string name="settings_keep_connected">Stay connected in the background</string>
+    <string name="settings_keep_connected_description">The remote is ready instantly, and playback and volume controls are available from the notification</string>
+
+    <!-- Background connection notification -->
+    <string name="notification_channel_connection">TV connection</string>
+    <string name="notification_channel_connection_description">Keeps the remote connected and shows quick controls</string>
+    <string name="details">Details</string>
+    <string name="settings_hold_repeat">Hold to keep moving</string>
+    <string name="settings_hold_repeat_description">Rest your finger after a swipe to keep stepping in that direction</string>
+    <string name="settings_troubleshooting">Troubleshooting</string>
+
+    <!-- Diagnostics -->
+    <string name="diagnostics">Diagnostics</string>
+    <string name="diagnostics_description">Connections, timeouts and errors. Share a report when something goes wrong.</string>
+    <string name="diagnostics_share">Share report</string>
+    <string name="diagnostics_clear">Clear</string>
+    <string name="diagnostics_clear_title">Clear diagnostic history?</string>
+    <string name="diagnostics_clear_message">All recorded events will be deleted from this phone.</string>
+    <string name="diagnostics_filter_all">All</string>
+    <string name="diagnostics_filter_problems">Problems only</string>
+    <string name="diagnostics_empty">Nothing recorded yet</string>
+    <string name="diagnostics_level_info">Info</string>
+    <string name="diagnostics_level_warning">Warning</string>
+    <string name="diagnostics_level_error">Error</string>
+    <string name="diagnostics_category_app">App</string>
+    <string name="diagnostics_category_connection">Connection</string>
+    <string name="diagnostics_category_pairing">Pairing</string>
+    <string name="diagnostics_category_discovery">Discovery</string>
+    <string name="diagnostics_category_service">Background</string>
+    <string name="settings_hold_repeat_speed">Hold speed</string>
+    <string name="settings_hold_repeat_speed_calm">Calm</string>
+    <string name="settings_hold_repeat_speed_medium">Medium</string>
+    <string name="settings_hold_repeat_speed_fast">Fast</string>
+</resources>

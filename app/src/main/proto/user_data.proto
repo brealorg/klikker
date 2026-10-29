@@ -1,0 +1,43 @@
+// Persisted state for Proto DataStore.
+syntax = "proto3";
+
+package userdata;
+
+option java_package = "no.enaasen.tvremote.proto.userdata";
+option java_multiple_files = true;
+
+message SavedTv {
+  string id = 1;
+  string name = 2;
+  string host = 3;
+  int32 port = 4;
+  // SHA-256 of the TV's TLS certificate, pinned at pairing time.
+  bytes certificate_sha256 = 5;
+}
+
+message SavedShortcut {
+  string label = 1;
+  string package_name = 2;
+}
+
+message SavedSettings {
+  // 1 (least sensitive) to 5; 0 means unset and maps to the default.
+  int32 swipe_sensitivity = 1;
+  bool fling_enabled = 2;
+  // Stored inverted so the default (false) keeps volume keys controlling the TV.
+  bool volume_keys_disabled = 3;
+  // Inverted so the default (false) keeps the connection open in the background.
+  bool background_connection_disabled = 4;
+  bool hold_repeat_disabled = 5;
+  // 1 (calm) to 3 (fast); 0 means unset and maps to the default.
+  int32 hold_repeat_speed = 6;
+}
+
+message UserData {
+  repeated SavedTv tvs = 1;
+  string selected_id = 2;
+  repeated SavedShortcut shortcuts = 3;
+  // False until the user first edits shortcuts; until then defaults are shown.
+  bool shortcuts_initialized = 4;
+  SavedSettings settings = 5;
+}

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fjernkontroll</string>
+
+    <string name="navigate_back">Tilbake</string>
+    <string name="cancel">Avbryt</string>
+    <string name="save">Lagre</string>
+    <string name="remove">Fjern</string>
+    <string name="try_again">Prøv igjen</string>
+
+    <string name="switch_tv">Bytt TV</string>
+    <string name="power">Av/på</string>
+    <string name="key_back">Tilbake</string>
+    <string name="key_home">Hjem</string>
+    <string name="key_play_pause">Spill av eller pause</string>
+    <string name="volume_up">Volum opp</string>
+    <string name="volume_down">Volum ned</string>
+    <string name="mute">Lyd av</string>
+    <string name="volume">Volum</string>
+    <string name="volume_level">Volum %1$d</string>
+    <string name="status_connected">Tilkoblet</string>
+    <string name="status_connecting">Kobler til …</string>
+    <string name="status_unreachable">Ikke tilgjengelig</string>
+    <string name="status_pairing_required">Må pares</string>
+    <string name="unreachable_message">Får ikke kontakt med %1$s. Sjekk at den er på og på samme nettverk som telefonen.</string>
+    <string name="pairing_required_message">%1$s kjenner ikke igjen denne telefonen lenger. Par på nytt for å fortsette.</string>
+    <string name="pair_again">Par på nytt</string>
+
+    <string name="swipe_pad">Styreflate</string>
+    <string name="swipe_pad_hint">Sveip for å flytte · trykk for å velge</string>
+    <string name="swipe_pad_state_disabled">Ikke tilkoblet</string>
+    <string name="direction_up">Opp</string>
+    <string name="direction_down">Ned</string>
+    <string name="direction_left">Venstre</string>
+    <string name="direction_right">Høyre</string>
+    <string name="select">Velg</string>
+
+    <string name="your_tvs">Dine TV-er</string>
+    <string name="add_tv">Legg til TV</string>
+    <string name="remove_tv_title">Fjerne %1$s?</string>
+    <string name="remove_tv_message">Du må pare på nytt for å bruke den.</string>
+    <string name="tv_selected">Valgt</string>
+    <string name="no_tv_title">Ingen TV lagt til</string>
+    <string name="no_tv_message">Legg til en Google TV- eller Android TV-enhet på nettverket ditt for å komme i gang.</string>
+
+    <string name="edit_shortcuts">Rediger</string>
+    <string name="shortcuts">Snarveier</string>
+    <string name="add_current_app">Legg til appen som er åpen</string>
+    <string name="add_current_app_hint">Åpne en app på TV-en for å legge den til her</string>
+    <string name="shortcut_name">Navn</string>
+    <string name="remove_shortcut">Fjern %1$s</string>
+
+    <string name="found_on_network">Funnet på nettverket</string>
+    <string name="searching_for_tvs">Leter etter TV-er …</string>
+    <string name="already_added">Allerede lagt til</string>
+    <string name="enter_ip">Skriv inn IP-adresse</string>
+    <string name="enter_ip_hint">Hvis TV-en ikke dukker opp</string>
+    <string name="ip_address">IP-adresse</string>
+    <string name="next">Neste</string>
+
+    <string name="pairing_title">Par %1$s</string>
+    <string name="pairing_connecting">Kobler til TV-en …</string>
+    <string name="pairing_enter_code">Skriv inn koden som vises på TV-en</string>
+    <string name="pairing_code">Kode</string>
+    <string name="pairing_wrong_code">Koden stemmer ikke. Sjekk TV-en og prøv igjen.</string>
+    <string name="pairing_failed">Kunne ikke pare med TV-en. Sjekk at den er på og på samme nettverk.</string>
+    <string name="pair">Par</string>
+
+    <string name="permission_title">Gi tilgang til lokalt nettverk</string>
+    <string name="permission_message">Fjernkontrollen snakker direkte med TV-en over hjemmenettverket ditt. Ingenting sendes ut av nettverket.</string>
+    <string name="permission_allow">Gi tilgang</string>
+    <string name="permission_open_settings">Åpne innstillinger</string>
+    <string name="settings">Innstillinger</string>
+    <string name="settings_touchpad">Styreflate</string>
+    <string name="settings_general">Generelt</string>
+    <string name="settings_sensitivity">Følsomhet</string>
+    <string name="settings_sensitivity_1">Svært lav</string>
+    <string name="settings_sensitivity_2">Lav</string>
+    <string name="settings_sensitivity_3">Middels</string>
+    <string name="settings_sensitivity_4">Høy</string>
+    <string name="settings_sensitivity_5">Svært høy</string>
+    <string name="settings_sensitivity_description">Hvor langt du må sveipe for hvert steg etter det første</string>
+    <string name="settings_fling">Ekstra steg ved raske sveip</string>
+    <string name="settings_fling_description">Et raskt sveip flytter opptil tre steg ekstra</string>
+    <string name="settings_volume_keys">Volumknappene styrer TV-en</string>
+    <string name="settings_volume_keys_description">Når appen er åpen og tilkoblet</string>
+    <string name="settings_keep_connected">Hold tilkoblingen åpen i bakgrunnen</string>
+    <string name="settings_keep_connected_description">Fjernkontrollen er klar med en gang, og avspilling og volum kan styres fra varselet</string>
+    <string name="notification_channel_connection">TV-tilkobling</string>
+    <string name="notification_channel_connection_description">Holder fjernkontrollen tilkoblet og viser hurtigkontroller</string>
+    <string name="details">Detaljer</string>
+    <string name="settings_hold_repeat">Hold for å fortsette</string>
+    <string name="settings_hold_repeat_description">Hold fingeren i ro etter et sveip for å fortsette i samme retning</string>
+    <string name="settings_troubleshooting">Feilsøking</string>
+    <string name="diagnostics">Diagnostikk</string>
+    <string name="diagnostics_description">Tilkoblinger, tidsavbrudd og feil. Del en rapport når noe går galt.</string>
+    <string name="diagnostics_share">Del rapport</string>
+    <string name="diagnostics_clear">Tøm</string>
+    <string name="diagnostics_clear_title">Tømme diagnostikkhistorikken?</string>
+    <string name="diagnostics_clear_message">Alle registrerte hendelser slettes fra telefonen.</string>
+    <string name="diagnostics_filter_all">Alle</string>
+    <string name="diagnostics_filter_problems">Bare problemer</string>
+    <string name="diagnostics_empty">Ingenting registrert ennå</string>
+    <string name="diagnostics_level_info">Info</string>
+    <string name="diagnostics_level_warning">Advarsel</string>
+    <string name="diagnostics_level_error">Feil</string>
+    <string name="diagnostics_category_app">App</string>
+    <string name="diagnostics_category_connection">Tilkobling</string>
+    <string name="diagnostics_category_pairing">Paring</string>
+    <string name="diagnostics_category_discovery">Søk</string>
+    <string name="diagnostics_category_service">Bakgrunn</string>
+    <string name="settings_hold_repeat_speed">Fart ved hold</string>
+    <string name="settings_hold_repeat_speed_calm">Rolig</string>
+    <string name="settings_hold_repeat_speed_medium">Middels</string>
+    <string name="settings_hold_repeat_speed_fast">Rask</string>
+</resources>
