@@ -83,6 +83,9 @@ data class RemoteSettings(
     }
 }
 
+/** The receiver's volume as on its own display: 0 on its scale is -80 dB. */
+fun ReceiverStatus.volumeLabel(): String? = volumeHalfSteps?.let { java.text.DecimalFormat("0.# dB").format(it / 2.0 - 80) }
+
 /** Live state of the network-controlled receiver, see [RemoteSettings.receiverHost]. */
 data class ReceiverStatus(
     val isConnected: Boolean = false,

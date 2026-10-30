@@ -141,6 +141,10 @@
     <string name="settings_show_app_names_description">Navn under app-ikonene nederst på fjernkontrollen</string>
     <string name="type_on_tv">Skriv på TV-en</string>
     <string name="hide_keyboard">Skjul tastaturet</string>
+    <string name="tile_power">TV</string>
+    <string name="tile_on">På</string>
+    <string name="tile_off">Av</string>
+    <string name="tile_muted">Dempet</string>
     <string name="media_previous">Forrige</string>
     <string name="media_next">Neste</string>
     <string name="now_open">Åpen på TV-en</string>

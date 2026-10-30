@@ -71,5 +71,27 @@
             android:name=".service.RemoteConnectionService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Quick settings tiles. -->
+        <service
+            android:name=".service.PowerTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_power_settings_new"
+            android:label="@string/tile_power"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".service.MuteTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_volume_off"
+            android:label="@string/mute"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

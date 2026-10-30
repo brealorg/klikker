@@ -55,7 +55,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.text.DecimalFormat
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.AppShortcut
@@ -65,6 +64,7 @@ import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.model.TvStatus
 import no.enaasen.tvremote.data.model.tv
+import no.enaasen.tvremote.data.model.volumeLabel
 import no.enaasen.tvremote.data.nowplaying.forApp
 
 @Composable
@@ -434,8 +434,7 @@ private fun TvStatus.toVolumeDisplay() = VolumeDisplay(
 private fun ReceiverStatus.toVolumeDisplay(stepHalfDb: Int, limitHalfSteps: Int): VolumeDisplay {
     val top = minOf(maxHalfSteps, limitHalfSteps)
     return VolumeDisplay(
-        // As on the receiver's own display: 0 on its scale is -80 dB.
-        level = volumeHalfSteps?.let { DecimalFormat("0.# dB").format(it / 2.0 - 80) },
+        level = volumeLabel(),
         fraction = volumeHalfSteps?.let { (it.toFloat() / top).coerceAtMost(1f) },
         isMuted = isMuted,
         stepsAcrossRing = top / stepHalfDb,
