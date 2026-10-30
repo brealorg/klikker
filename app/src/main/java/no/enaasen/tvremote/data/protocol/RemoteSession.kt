@@ -145,10 +145,10 @@ class RemoteSession private constructor(
             val current = tvText
             if (current == wanted) return
             // Assumes the TV's cursor is at the end, as it is while typing.
-            val common = current.commonPrefixWith(wanted).length
-            repeat(current.length - common) { sendKey(KeyEvent.KEYCODE_DEL) }
-            tvText = current.take(common)
-            if (wanted.length == common) return
+            val edit = textEdit(current, wanted)
+            repeat(edit.backspaces) { sendKey(KeyEvent.KEYCODE_DEL) }
+            tvText = current.take(edit.kept)
+            if (edit.insert.isEmpty()) return
             textReports.tryReceive()
             send(
                 remoteMessage {
@@ -160,7 +160,7 @@ class RemoteSession private constructor(
                             textFieldStatus = remoteImeObject {
                                 start = wanted.length - 1
                                 end = wanted.length - 1
-                                value = wanted.substring(common)
+                                value = edit.insert
                             }
                         }
                     }
@@ -243,6 +243,11 @@ class RemoteSession private constructor(
                 if (appPackage.isNotEmpty()) _status.update { it.copy(currentAppPackage = appPackage) }
                 if (hasTextFieldStatus()) {
                     val focusId = focusIds.incrementAndGet()
+                    // Never the text itself: the field may hold a password.
+                    log.info(
+                        DiagnosticCategory.Connection,
+                        "TV text field focused in $appPackage (inputType ${appInfo.int2}, imeOptions ${appInfo.int3})",
+                    )
                     imeCounter = appInfo.counter
                     imeFieldCounter = textFieldStatus.counterField
                     tvText = textFieldStatus.value
@@ -261,6 +266,9 @@ class RemoteSession private constructor(
                     }
                     textReports.trySend(Unit)
                 } else {
+                    if (_status.value.textField != null) {
+                        log.info(DiagnosticCategory.Connection, "TV text field lost focus in $appPackage")
+                    }
                     wantedText.value = null
                     _status.update { it.copy(textField = null) }
                 }
