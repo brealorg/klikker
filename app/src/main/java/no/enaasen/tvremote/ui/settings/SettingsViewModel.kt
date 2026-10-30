@@ -74,6 +74,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setReceiverVolumeStep(step: Int) = update { it.copy(receiverVolumeStep = step) }
 
+    fun setReceiverMaxHalfSteps(halfSteps: Int) = update { it.copy(receiverMaxHalfSteps = halfSteps) }
+
     private fun update(transform: (RemoteSettings) -> RemoteSettings) {
         viewModelScope.launch { repository.updateSettings(transform) }
     }

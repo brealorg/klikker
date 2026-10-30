@@ -86,6 +86,9 @@
     <string name="settings_sensitivity_description">How far you swipe for each step after the first</string>
     <string name="settings_fling">Extra steps on fast swipes</string>
     <string name="settings_fling_description">A quick flick moves up to three extra steps</string>
+    <string name="settings_receiver_max_volume">Maximum volume</string>
+    <string name="settings_receiver_max_volume_description">The ring and volume buttons stop here, so a hard turn can\'t blast the receiver</string>
+    <string name="settings_receiver_max_volume_none">No limit</string>
     <string name="settings_volume_haptics">Volume ring vibration</string>
     <string name="settings_volume_haptics_off">Off</string>
     <string name="settings_volume_haptics_light">Light</string>

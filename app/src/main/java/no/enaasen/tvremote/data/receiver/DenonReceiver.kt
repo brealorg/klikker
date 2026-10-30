@@ -113,7 +113,7 @@ class DenonReceiver @Inject constructor(
      * Handles volume and mute keys while connected. Returns false for other
      * keys, or when the receiver isn't connected so the TV should get the key.
      */
-    fun handleKey(keyCode: Int, direction: RemoteDirection, stepHalfDb: Int): Boolean {
+    fun handleKey(keyCode: Int, direction: RemoteDirection, stepHalfDb: Int, limitHalfSteps: Int): Boolean {
         if (commands == null) return false
         val up = when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> true
@@ -131,7 +131,7 @@ class DenonReceiver @Inject constructor(
                 // Capped, so a lost release can't run the volume to either end.
                 repeatJob = scope.launch {
                     repeat(MAX_HOLD_STEPS) {
-                        stepVolume(up, stepHalfDb)
+                        stepVolume(up, stepHalfDb, limitHalfSteps)
                         delay(HOLD_REPEAT_MS)
                     }
                 }
@@ -140,7 +140,7 @@ class DenonReceiver @Inject constructor(
                 log.info(DiagnosticCategory.Receiver, "Volume hold ended")
                 stopRepeat()
             }
-            else -> stepVolume(up, stepHalfDb)
+            else -> stepVolume(up, stepHalfDb, limitHalfSteps)
         }
         return true
     }
@@ -150,10 +150,17 @@ class DenonReceiver @Inject constructor(
         repeatJob = null
     }
 
-    private fun stepVolume(up: Boolean, stepHalfDb: Int) {
+    private fun stepVolume(up: Boolean, stepHalfDb: Int, limitHalfSteps: Int) {
         val current = _status.value
         val volume = current.volumeHalfSteps ?: return
-        val target = DenonProtocol.stepVolume(volume, stepHalfDb, up, current.maxHalfSteps)
+        // Up never goes past the limit. If the receiver is already above it (set
+        // elsewhere), going up does nothing and going down steps normally.
+        val max = if (up) minOf(current.maxHalfSteps, limitHalfSteps) else current.maxHalfSteps
+        if (up && volume >= max) {
+            log.info(DiagnosticCategory.Receiver, "Volume up refused at the limit: $volume half-steps (limit $limitHalfSteps)")
+            return
+        }
+        val target = DenonProtocol.stepVolume(volume, stepHalfDb, up, max)
         if (target == volume) return
         lastLocalChangeAt = SystemClock.elapsedRealtime()
         log.info(DiagnosticCategory.Receiver, "Volume ${if (up) "up" else "down"} from the phone: $volume -> $target half-steps")

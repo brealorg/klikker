@@ -252,7 +252,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     label = uiState.apps.pinned.find { it.packageName == packageName }?.label ?: AppCatalog.label(packageName),
                 )
             }
-            val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay(uiState.settings.receiverVolumeStep) ?: status?.toVolumeDisplay()
+            val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay(uiState.settings.receiverVolumeStep, uiState.settings.receiverMaxHalfSteps) ?: status?.toVolumeDisplay()
             VolumeKnob(
                 volume = volume,
                 padEnabled = connected,
@@ -428,13 +428,17 @@ private fun TvStatus.toVolumeDisplay() = VolumeDisplay(
     isMuted = isMuted,
 )
 
-private fun ReceiverStatus.toVolumeDisplay(stepHalfDb: Int) = VolumeDisplay(
-    // As on the receiver's own display: 0 on its scale is -80 dB.
-    level = volumeHalfSteps?.let { DecimalFormat("0.# dB").format(it / 2.0 - 80) },
-    fraction = volumeHalfSteps?.let { it.toFloat() / maxHalfSteps },
-    isMuted = isMuted,
-    stepsAcrossRing = maxHalfSteps / stepHalfDb,
-)
+/** The ring runs from silence to the limit, so a full sweep never asks for more. */
+private fun ReceiverStatus.toVolumeDisplay(stepHalfDb: Int, limitHalfSteps: Int): VolumeDisplay {
+    val top = minOf(maxHalfSteps, limitHalfSteps)
+    return VolumeDisplay(
+        // As on the receiver's own display: 0 on its scale is -80 dB.
+        level = volumeHalfSteps?.let { DecimalFormat("0.# dB").format(it / 2.0 - 80) },
+        fraction = volumeHalfSteps?.let { (it.toFloat() / top).coerceAtMost(1f) },
+        isMuted = isMuted,
+        stepsAcrossRing = top / stepHalfDb,
+    )
+}
 
 /** Pinned shortcuts first, then apps the TV has opened recently as suggestions. */
 @Composable

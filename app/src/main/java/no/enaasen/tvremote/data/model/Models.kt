@@ -44,6 +44,8 @@ data class RemoteSettings(
     val showAppNames: Boolean = true,
     /** Vibration while turning the volume ring, [VOLUME_HAPTICS_OFF] to [VOLUME_HAPTICS_FULL]. */
     val volumeHaptics: Int = VOLUME_HAPTICS_FULL,
+    /** Highest volume the phone sets on the receiver, in half-dB steps (0 on the receiver's scale is -80 dB). */
+    val receiverMaxHalfSteps: Int = DEFAULT_RECEIVER_MAX_HALF_STEPS,
 ) {
     companion object {
         const val MIN_SWIPE_SENSITIVITY = 1
@@ -53,6 +55,9 @@ data class RemoteSettings(
         val HOLD_REPEAT_SPEEDS = 1..3
         const val DEFAULT_RECEIVER_VOLUME_STEP = 2
         val RECEIVER_VOLUME_STEPS = listOf(1, 2, 4)
+        const val MIN_RECEIVER_MAX_HALF_STEPS = 60
+        const val NO_RECEIVER_MAX_HALF_STEPS = 196
+        const val DEFAULT_RECEIVER_MAX_HALF_STEPS = 140
         const val VOLUME_HAPTICS_OFF = 1
         const val VOLUME_HAPTICS_LIGHT = 2
         const val VOLUME_HAPTICS_FULL = 3

@@ -78,6 +78,9 @@
     <string name="settings_sensitivity_description">Hvor langt du må sveipe for hvert steg etter det første</string>
     <string name="settings_fling">Ekstra steg ved raske sveip</string>
     <string name="settings_fling_description">Et raskt sveip flytter opptil tre steg ekstra</string>
+    <string name="settings_receiver_max_volume">Høyeste volum</string>
+    <string name="settings_receiver_max_volume_description">Ringen og volumknappene stopper her, så et hardt sveip ikke blåser opp mottakeren</string>
+    <string name="settings_receiver_max_volume_none">Ingen grense</string>
     <string name="settings_volume_haptics">Vibrasjon på volumringen</string>
     <string name="settings_volume_haptics_off">Av</string>
     <string name="settings_volume_haptics_light">Lett</string>

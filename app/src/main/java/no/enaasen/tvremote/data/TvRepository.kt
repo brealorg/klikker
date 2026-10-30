@@ -162,7 +162,8 @@ class TvRepository @Inject constructor(
     }
 
     fun sendKey(keyCode: Int, direction: RemoteDirection = RemoteDirection.SHORT) {
-        if (receiver.handleKey(keyCode, direction, settings.value.receiverVolumeStep)) return
+        val current = settings.value
+        if (receiver.handleKey(keyCode, direction, current.receiverVolumeStep, current.receiverMaxHalfSteps)) return
         val session = activeSession ?: return
         val isVolumeStep = keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
         if (isVolumeStep && direction == RemoteDirection.SHORT) {
@@ -271,6 +272,7 @@ class TvRepository @Inject constructor(
                     receiverVolumeStep = updated.receiverVolumeStep
                     appNamesHidden = !updated.showAppNames
                     volumeHaptics = updated.volumeHaptics
+                    receiverMaxHalfSteps = updated.receiverMaxHalfSteps
                 }
             }
         }
@@ -463,4 +465,7 @@ private fun SavedSettings.toModel() = RemoteSettings(
         ?: RemoteSettings.DEFAULT_RECEIVER_VOLUME_STEP,
     showAppNames = !appNamesHidden,
     volumeHaptics = volumeHaptics.takeIf { it in RemoteSettings.VOLUME_HAPTICS } ?: RemoteSettings.VOLUME_HAPTICS_FULL,
+    receiverMaxHalfSteps = receiverMaxHalfSteps
+        .takeIf { it in RemoteSettings.MIN_RECEIVER_MAX_HALF_STEPS..RemoteSettings.NO_RECEIVER_MAX_HALF_STEPS }
+        ?: RemoteSettings.DEFAULT_RECEIVER_MAX_HALF_STEPS,
 )

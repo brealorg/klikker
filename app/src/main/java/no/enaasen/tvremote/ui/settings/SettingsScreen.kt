@@ -58,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.DecimalFormat
 import kotlin.math.roundToInt
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
@@ -90,6 +91,7 @@ fun SettingsRoute(
         onReceiverHostChange = viewModel::saveReceiverHost,
         onReceiverCheckReset = viewModel::resetReceiverCheck,
         onReceiverVolumeStepChange = viewModel::setReceiverVolumeStep,
+        onReceiverMaxVolumeChange = viewModel::setReceiverMaxHalfSteps,
     )
 }
 
@@ -114,6 +116,7 @@ internal fun SettingsScreen(
     onReceiverHostChange: (String) -> Unit,
     onReceiverCheckReset: () -> Unit,
     onReceiverVolumeStepChange: (Int) -> Unit,
+    onReceiverMaxVolumeChange: (Int) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -222,6 +225,14 @@ internal fun SettingsScreen(
                         enabled = settings.receiverHost.isNotBlank(),
                         shapes = shapes,
                         onChange = onReceiverVolumeStepChange,
+                    )
+                },
+                { shapes ->
+                    ReceiverMaxVolumeSetting(
+                        halfSteps = settings.receiverMaxHalfSteps,
+                        enabled = settings.receiverHost.isNotBlank(),
+                        shapes = shapes,
+                        onChange = onReceiverMaxVolumeChange,
                     )
                 },
             )
@@ -488,6 +499,51 @@ private fun ReceiverDialog(
         },
     )
 }
+
+@Composable
+private fun ReceiverMaxVolumeSetting(halfSteps: Int, enabled: Boolean, shapes: ListItemShapes, onChange: (Int) -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    val min = RemoteSettings.MIN_RECEIVER_MAX_HALF_STEPS
+    val max = RemoteSettings.NO_RECEIVER_MAX_HALF_STEPS
+    // One tick per dB. The thumb is tracked locally while dragging; the setting is saved when released.
+    val state = remember { SliderState(halfSteps.toFloat(), (max - min) / 2 - 1, min.toFloat()..max.toFloat()) }
+    LaunchedEffect(halfSteps) { state.value = halfSteps.toFloat() }
+    val value = (state.value / 2).roundToInt() * 2
+    val label = maxVolumeLabel(value)
+
+    SegmentedListItem(
+        shapes = shapes,
+        colors = settingsItemColors(),
+        enabled = enabled,
+        supportingContent = {
+            Column {
+                Text(stringResource(R.string.settings_receiver_max_volume_description))
+                Slider(
+                    state = state,
+                    enabled = enabled,
+                    onValueChange = { new ->
+                        if ((new / 2).roundToInt() * 2 != value) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        state.value = new
+                    },
+                    onValueChangeFinished = { onChange((state.value / 2).roundToInt() * 2) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { stateDescription = label },
+                )
+            }
+        },
+        trailingContent = { Text(label, style = MaterialTheme.typography.labelLarge) },
+    ) { Text(stringResource(R.string.settings_receiver_max_volume)) }
+}
+
+/** As on the receiver's own display: 0 on its scale is -80 dB. */
+@Composable
+private fun maxVolumeLabel(halfSteps: Int): String =
+    if (halfSteps >= RemoteSettings.NO_RECEIVER_MAX_HALF_STEPS) {
+        stringResource(R.string.settings_receiver_max_volume_none)
+    } else {
+        DecimalFormat("0.# dB").format(halfSteps / 2.0 - 80)
+    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
