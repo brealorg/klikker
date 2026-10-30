@@ -126,7 +126,6 @@ class DenonReceiver @Inject constructor(
         }
         when (direction) {
             RemoteDirection.START_LONG -> {
-                log.info(DiagnosticCategory.Receiver, "Volume hold started (${if (up) "up" else "down"})")
                 stopRepeat()
                 // Capped, so a lost release can't run the volume to either end.
                 repeatJob = scope.launch {
@@ -136,10 +135,7 @@ class DenonReceiver @Inject constructor(
                     }
                 }
             }
-            RemoteDirection.END_LONG -> {
-                log.info(DiagnosticCategory.Receiver, "Volume hold ended")
-                stopRepeat()
-            }
+            RemoteDirection.END_LONG -> stopRepeat()
             else -> stepVolume(up, stepHalfDb, limitHalfSteps)
         }
         return true
@@ -156,21 +152,16 @@ class DenonReceiver @Inject constructor(
         // Up never goes past the limit. If the receiver is already above it (set
         // elsewhere), going up does nothing and going down steps normally.
         val max = if (up) minOf(current.maxHalfSteps, limitHalfSteps) else current.maxHalfSteps
-        if (up && volume >= max) {
-            log.info(DiagnosticCategory.Receiver, "Volume up refused at the limit: $volume half-steps (limit $limitHalfSteps)")
-            return
-        }
+        if (up && volume >= max) return
         val target = DenonProtocol.stepVolume(volume, stepHalfDb, up, max)
         if (target == volume) return
         lastLocalChangeAt = SystemClock.elapsedRealtime()
-        log.info(DiagnosticCategory.Receiver, "Volume ${if (up) "up" else "down"} from the phone: $volume -> $target half-steps")
         _status.update { it.copy(volumeHalfSteps = target) }
         volumeTargets.trySend(target)
     }
 
     private fun toggleMute() {
         val mute = !_status.value.isMuted
-        log.info(DiagnosticCategory.Receiver, "Mute ${if (mute) "on" else "off"} from the phone")
         _status.update { it.copy(isMuted = mute) }
         commands?.trySend(if (mute) "MUON" else "MUOFF")
     }
@@ -254,22 +245,12 @@ class DenonReceiver @Inject constructor(
                 ?.let { max -> _status.update { it.copy(maxHalfSteps = max) } }
             line.startsWith("MV") -> DenonProtocol.parseVolume(line.removePrefix("MV")).let { volume ->
                 val recentLocalChange = SystemClock.elapsedRealtime() - lastLocalChangeAt < ECHO_IGNORE_MS
-                val shown = _status.value.volumeHalfSteps
-                if (volume != null && !(recentLocalChange && shown != null)) {
-                    // Only changes: the poll reports the same volume every 20 s.
-                    if (volume != shown) {
-                        log.info(DiagnosticCategory.Receiver, "Receiver reports volume $volume half-steps (shown $shown)")
-                    }
+                if (volume != null && !(recentLocalChange && _status.value.volumeHalfSteps != null)) {
                     _status.update { it.copy(volumeHalfSteps = volume) }
-                } else if (volume != null && volume != shown) {
-                    log.info(DiagnosticCategory.Receiver, "Ignored receiver volume $volume half-steps as an echo (shown $shown)")
                 }
             }
-            line == "MUON" || line == "MUOFF" -> {
-                val muted = line == "MUON"
-                if (muted != _status.value.isMuted) log.info(DiagnosticCategory.Receiver, "Receiver reports mute ${if (muted) "on" else "off"}")
-                _status.update { it.copy(isMuted = muted) }
-            }
+            line == "MUON" -> _status.update { it.copy(isMuted = true) }
+            line == "MUOFF" -> _status.update { it.copy(isMuted = false) }
         }
         return _status.value.volumeHalfSteps != null
     }
