@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TvRemote"
 include(":app")
+include(":companion")
