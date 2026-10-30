@@ -25,8 +25,18 @@ class MediaListenerService : NotificationListenerService() {
 
     private val notificationControllers = ConcurrentHashMap<String, MediaController>()
 
-    private val server = NowPlayingServer {
-        nowPlayingJson((activeControllers + notificationControllers.values).distinctBy { it.sessionToken })
+    private val server = NowPlayingServer { path ->
+        val all = (activeControllers + notificationControllers.values).distinctBy { it.sessionToken }
+        when {
+            path == "/nowplaying" -> HttpResponse(JSON, nowPlayingJson(all).toByteArray(Charsets.UTF_8))
+            path.startsWith("/art?package=") -> {
+                val packageName = path.substringAfter("package=").substringBefore('&')
+                all.firstNotNullOfOrNull { controller -> controller.takeIf { it.packageName == packageName }?.art() }
+                    ?.jpeg()
+                    ?.let { HttpResponse("image/jpeg", it) }
+            }
+            else -> null
+        }
     }
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener {
@@ -58,6 +68,10 @@ class MediaListenerService : NotificationListenerService() {
     override fun onDestroy() {
         stop()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val JSON = "application/json; charset=utf-8"
     }
 
     private fun stop() {

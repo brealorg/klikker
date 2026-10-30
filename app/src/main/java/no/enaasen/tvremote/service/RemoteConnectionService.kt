@@ -165,7 +165,7 @@ class RemoteConnectionService : Service() {
         }
         // A cast has no subtitle; the app's name fills the line the controls show under the title.
         val subtitle = media.subtitle ?: appLabel
-        val metadata = SessionMetadata(media.title, subtitle, media.durationMs)
+        val metadata = SessionMetadata(media.title, subtitle, media.durationMs, media.artToken)
         if (metadata != sessionMetadata) {
             sessionMetadata = metadata
             session.setMetadata(
@@ -173,6 +173,7 @@ class RemoteConnectionService : Service() {
                     .putString(MediaMetadata.METADATA_KEY_TITLE, media.title)
                     .putString(MediaMetadata.METADATA_KEY_ARTIST, subtitle)
                     .putLong(MediaMetadata.METADATA_KEY_DURATION, media.durationMs ?: -1L)
+                    .apply { media.art?.let { putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, it) } }
                     .build(),
             )
         }
@@ -225,7 +226,7 @@ class RemoteConnectionService : Service() {
                 .setContentTitle(media.title)
                 .setContentText(media.subtitle ?: appLabel)
                 .setSubText(listOfNotNull(appLabel, getString(media.state.label())).joinToString(" · "))
-                .setLargeIcon(packageName?.let(::appIcon))
+                .setLargeIcon(media.art ?: packageName?.let(::appIcon))
                 .addKeyAction(R.drawable.ic_skip_previous, R.string.media_previous, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
                 .addKeyAction(
                     if (media.state == MediaState.Playing) R.drawable.ic_pause else R.drawable.ic_play_arrow,
@@ -317,7 +318,7 @@ class RemoteConnectionService : Service() {
         val appLabel: String?,
     )
 
-    private data class SessionMetadata(val title: String?, val subtitle: String?, val durationMs: Long?)
+    private data class SessionMetadata(val title: String?, val subtitle: String?, val durationMs: Long?, val artToken: String?)
 
     private data class SessionPlayback(val state: Int, val position: Long, val at: Long)
 

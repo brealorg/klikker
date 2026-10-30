@@ -6,11 +6,14 @@ import java.net.ServerSocket
 import java.net.Socket
 import kotlin.concurrent.thread
 
+internal class HttpResponse(val contentType: String, val body: ByteArray)
+
 /**
- * A minimal read-only HTTP server: `GET /nowplaying` answers with [body] as JSON.
- * Anyone on the local network can read it, which is the point (the phone does).
+ * A minimal read-only HTTP server: each `GET` path is answered by [route], or
+ * with 404 when it returns null. Anyone on the local network can read it,
+ * which is the point (the phone does).
  */
-internal class NowPlayingServer(private val body: () -> String) {
+internal class NowPlayingServer(private val route: (path: String) -> HttpResponse?) {
     @Volatile
     private var server: ServerSocket? = null
 
@@ -44,10 +47,11 @@ internal class NowPlayingServer(private val body: () -> String) {
         runCatching {
             socket.soTimeout = READ_TIMEOUT_MS
             val request = socket.getInputStream().bufferedReader().readLine().orEmpty()
-            val found = request.startsWith("GET /nowplaying")
-            val payload = (if (found) body() else "{}").toByteArray(Charsets.UTF_8)
-            val head = "HTTP/1.1 ${if (found) "200 OK" else "404 Not Found"}\r\n" +
-                "Content-Type: application/json; charset=utf-8\r\n" +
+            val path = request.takeIf { it.startsWith("GET ") }?.removePrefix("GET ")?.substringBefore(' ')
+            val response = path?.let(route)
+            val payload = response?.body ?: ByteArray(0)
+            val head = "HTTP/1.1 ${if (response != null) "200 OK" else "404 Not Found"}\r\n" +
+                "Content-Type: ${response?.contentType ?: "text/plain"}\r\n" +
                 "Content-Length: ${payload.size}\r\n" +
                 "Cache-Control: no-store\r\n" +
                 "Connection: close\r\n\r\n"

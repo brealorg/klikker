@@ -1,5 +1,7 @@
 package no.enaasen.tvremote.data.model
 
+import android.graphics.Bitmap
+
 data class Tv(
     val id: String,
     val name: String,
@@ -17,6 +19,10 @@ data class MediaSessionInfo(
     val subtitle: String?,
     val positionMs: Long?,
     val durationMs: Long?,
+    /** Identifies the picture the session carries (poster, cover); it changes when the picture does. */
+    val artToken: String? = null,
+    /** The picture itself, once fetched. */
+    val art: Bitmap? = null,
 )
 
 data class DiscoveredTv(

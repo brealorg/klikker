@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
@@ -32,7 +34,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +64,9 @@ private val HeroIconSize = 64.dp
 internal fun NowPlaying(packageName: String, label: String, media: MediaSessionInfo?, modifier: Modifier = Modifier) {
     val home = AppCatalog.isHomeScreen(packageName)
     val icon = if (home) null else rememberAppIcon(packageName, HeroIconSize)
-    val tint by produceState<Color?>(null, icon) { value = icon?.let { dominantColor(it) } }
+    // The poster or cover, when the session has one, stands in for the app's icon.
+    val artwork = remember(media?.art) { media?.art?.asImageBitmap() }
+    val tint by produceState<Color?>(null, icon, artwork) { value = (artwork ?: icon)?.let { dominantColor(it) } }
 
     val colors = MaterialTheme.colorScheme
     val container by animateColorAsState(
@@ -90,19 +96,28 @@ internal fun NowPlaying(packageName: String, label: String, media: MediaSessionI
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Crossfade(targetState = packageName, label = "nowPlayingIcon") { shown ->
-                if (AppCatalog.isHomeScreen(shown)) {
-                    Box(
-                        modifier = Modifier
-                            .size(HeroIconSize)
-                            .clip(shape)
-                            .background(colors.secondaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = colors.onSecondaryContainer)
+            if (artwork != null) {
+                Image(
+                    bitmap = artwork,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(HeroIconSize).clip(RoundedCornerShape(16.dp)),
+                )
+            } else {
+                Crossfade(targetState = packageName, label = "nowPlayingIcon") { shown ->
+                    if (AppCatalog.isHomeScreen(shown)) {
+                        Box(
+                            modifier = Modifier
+                                .size(HeroIconSize)
+                                .clip(shape)
+                                .background(colors.secondaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = colors.onSecondaryContainer)
+                        }
+                    } else {
+                        AppIcon(label, shown, shape, HeroIconSize)
                     }
-                } else {
-                    AppIcon(label, shown, shape, HeroIconSize)
                 }
             }
             Column(Modifier.weight(1f)) {

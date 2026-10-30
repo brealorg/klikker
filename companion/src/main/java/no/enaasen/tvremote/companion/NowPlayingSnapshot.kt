@@ -22,6 +22,7 @@ private fun MediaController.toJson(): JSONObject {
     return JSONObject().apply {
         put("package", packageName)
         put("state", playback?.state.stateName())
+        art()?.let { put("art", it.token) }
         meta?.let {
             // Streaming apps fill the display fields, music apps the plain ones.
             put("title", it.text(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) ?: it.text(MediaMetadata.METADATA_KEY_TITLE))

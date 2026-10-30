@@ -1,6 +1,7 @@
 package no.enaasen.tvremote.data
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -46,6 +47,7 @@ import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.MediaSessionInfo
+import no.enaasen.tvremote.data.model.MediaState
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
@@ -127,11 +129,28 @@ class TvRepository @Inject constructor(
             }
             while (true) {
                 val sessions = CompanionClient.fetch(host)
-                emit(sessions.orEmpty())
+                emit(sessions?.map { withArt(host, it) }.orEmpty())
                 delay(if (sessions != null) NOW_PLAYING_POLL_MS else NOW_PLAYING_RETRY_MS)
             }
         }
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Pictures by session and picture token. A failed fetch is kept too (as null), so a
+    // picture the TV can't deliver isn't asked for on every poll.
+    private val artCache = object : LinkedHashMap<String, Bitmap?>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap?>) = size > MAX_CACHED_ART
+    }
+
+    private suspend fun withArt(host: String, session: MediaSessionInfo): MediaSessionInfo {
+        val token = session.artToken ?: return session
+        if (session.state == MediaState.Stopped || session.title == null) return session
+        val key = "${session.packageName}|$token"
+        if (!synchronized(artCache) { artCache.containsKey(key) }) {
+            val art = CompanionClient.fetchArt(host, session.packageName)
+            synchronized(artCache) { artCache[key] = art }
+        }
+        return session.copy(art = synchronized(artCache) { artCache[key] })
+    }
 
     /** Set by [no.enaasen.tvremote.service.RemoteConnectionService] while it runs. */
     private val backgroundServiceRunning = MutableStateFlow(false)
@@ -451,6 +470,7 @@ class TvRepository @Inject constructor(
         const val WAKE_TIMEOUT_MS = 1_500L
         const val NOW_PLAYING_POLL_MS = 3_000L
         const val NOW_PLAYING_RETRY_MS = 30_000L
+        const val MAX_CACHED_ART = 8
         const val MAX_SEEN_APPS = 40
         const val MAX_SUGGESTED_APPS = 10
     }
