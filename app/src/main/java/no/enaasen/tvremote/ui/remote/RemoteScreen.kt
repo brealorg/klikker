@@ -60,13 +60,12 @@ import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
-import no.enaasen.tvremote.data.model.MediaSessionInfo
-import no.enaasen.tvremote.data.model.MediaState
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.model.TvStatus
 import no.enaasen.tvremote.data.model.tv
+import no.enaasen.tvremote.data.nowplaying.forApp
 
 @Composable
 fun RemoteRoute(
@@ -424,11 +423,6 @@ private fun RemoteToolbar(
         }
     }
 }
-
-/** What [packageName] is playing, if anything: a playing session before a paused one. */
-private fun List<MediaSessionInfo>.forApp(packageName: String): MediaSessionInfo? =
-    filter { it.packageName == packageName && it.state != MediaState.Stopped && it.title != null }
-        .let { sessions -> sessions.firstOrNull { it.state == MediaState.Playing } ?: sessions.firstOrNull() }
 
 private fun TvStatus.toVolumeDisplay() = VolumeDisplay(
     level = volumeLevel?.toString(),

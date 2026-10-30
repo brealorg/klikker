@@ -14,6 +14,8 @@
     <string name="key_back">Back</string>
     <string name="key_home">Home</string>
     <string name="key_play_pause">Play or pause</string>
+    <string name="media_previous">Previous</string>
+    <string name="media_next">Next</string>
     <string name="volume_up">Volume up</string>
     <string name="volume_down">Volume down</string>
     <string name="mute">Mute</string>
