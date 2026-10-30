@@ -63,7 +63,14 @@ class RemoteSession private constructor(
     private val _status = MutableStateFlow(TvStatus())
     val status: StateFlow<TvStatus> = _status.asStateFlow()
 
-    fun sendKey(keyCode: Int, direction: RemoteDirection = RemoteDirection.SHORT) = send(
+    fun sendKey(keyCode: Int, direction: RemoteDirection = RemoteDirection.SHORT) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            log.info(DiagnosticCategory.Connection, "Volume key $keyCode ($direction) sent to the TV")
+        }
+        sendKeyMessage(keyCode, direction)
+    }
+
+    private fun sendKeyMessage(keyCode: Int, direction: RemoteDirection) = send(
         remoteMessage {
             remoteKeyInject = remoteKeyInject {
                 this.keyCode = keyCode
@@ -74,7 +81,9 @@ class RemoteSession private constructor(
 
     /** Queues a single volume key press; see [volumeTaps]. */
     fun sendVolumeTap(keyCode: Int) {
-        volumeTaps.trySend(keyCode)
+        if (volumeTaps.trySend(keyCode).isFailure) {
+            log.info(DiagnosticCategory.Connection, "Volume tap $keyCode dropped, queue full")
+        }
     }
 
     // Typing: the TV accepts an insertion only with the counters it last
@@ -123,7 +132,8 @@ class RemoteSession private constructor(
         }
         launch {
             for (keyCode in volumeTaps) {
-                sendKey(keyCode)
+                log.info(DiagnosticCategory.Connection, "Volume tap $keyCode sent to the TV")
+                sendKeyMessage(keyCode, RemoteDirection.SHORT)
                 delay(VOLUME_TAP_INTERVAL_MS)
             }
         }
@@ -223,6 +233,10 @@ class RemoteSession private constructor(
                 // With HDMI-CEC volume passthrough (e.g. SHIELD) the device reports a fixed 0
                 // rather than the TV's volume; treat that as unknown instead of showing it.
                 val known = volumeLevel > 0 || volumeMuted
+                val before = _status.value
+                if (before.volumeLevel != volumeLevel.takeIf { known } || before.isMuted != volumeMuted) {
+                    log.info(DiagnosticCategory.Connection, "TV reports volume $volumeLevel/$volumeMax, muted $volumeMuted (shown ${before.volumeLevel})")
+                }
                 _status.update {
                     it.copy(
                         volumeLevel = volumeLevel.takeIf { known },
