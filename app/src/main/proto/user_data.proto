@@ -22,6 +22,16 @@ message SavedTv {
   // The app last reported in the foreground, home screens included. The TV
   // reports only switches, so this stands in until the next one.
   string last_app_package = 9;
+  repeated SavedScene scenes = 10;
+}
+
+// A way to set the TV up: turn it on, open an app, set the receiver's volume.
+message SavedScene {
+  string name = 1;
+  // Empty to leave the app as it is.
+  string app_package = 2;
+  // Receiver volume in half-dB steps; absent to leave the volume as it is.
+  optional int32 volume_half_steps = 3;
 }
 
 message SeenApp {

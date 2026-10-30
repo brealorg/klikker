@@ -83,8 +83,13 @@ data class RemoteSettings(
     }
 }
 
-/** The receiver's volume as on its own display: 0 on its scale is -80 dB. */
-fun ReceiverStatus.volumeLabel(): String? = volumeHalfSteps?.let { java.text.DecimalFormat("0.# dB").format(it / 2.0 - 80) }
+/** A volume in half-dB steps as on the receiver's own display: 0 on its scale is -80 dB. */
+fun volumeLabel(halfSteps: Int): String = java.text.DecimalFormat("0.# dB").format(halfSteps / 2.0 - 80)
+
+fun ReceiverStatus.volumeLabel(): String? = volumeHalfSteps?.let(::volumeLabel)
+
+/** A way to set the TV up, run with one tap: on, an app opened, a volume set. Null leaves that as it is. */
+data class Scene(val name: String, val appPackage: String?, val volumeHalfSteps: Int?)
 
 /** Live state of the network-controlled receiver, see [RemoteSettings.receiverHost]. */
 data class ReceiverStatus(

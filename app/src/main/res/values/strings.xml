@@ -14,6 +14,12 @@
     <string name="key_back">Back</string>
     <string name="key_home">Home</string>
     <string name="key_play_pause">Play or pause</string>
+    <string name="scenes">Scenes</string>
+    <string name="scenes_hint">Set the TV up the way you like it, with an app open and the volume you want, then save it here. A scene turns the TV on if needed, opens the app and sets the volume.</string>
+    <string name="save_scene">Save how it is now as a scene</string>
+    <string name="scene_name">Scene name</string>
+    <string name="scene_nothing_set">Nothing set</string>
+    <string name="remove_scene">Remove the scene %1$s</string>
     <string name="tile_power">TV</string>
     <string name="tile_on">On</string>
     <string name="tile_off">Off</string>

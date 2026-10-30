@@ -49,8 +49,10 @@ import androidx.graphics.shapes.Morph
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.AppShortcut
+import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
+import no.enaasen.tvremote.data.model.volumeLabel
 import no.enaasen.tvremote.ui.theme.MorphShape
 
 private val SheetIconSize = 40.dp
@@ -158,12 +160,17 @@ private fun TvIcon(selected: Boolean) {
 internal fun ShortcutSheet(
     apps: TvApps,
     currentAppPackage: String?,
+    scenes: List<Scene>,
+    canSaveScene: Boolean,
     onPin: (label: String, packageName: String) -> Unit,
     onRename: (AppShortcut, label: String) -> Unit,
     onRemove: (AppShortcut) -> Unit,
+    onSaveScene: (name: String) -> Unit,
+    onRemoveScene: (Scene) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var renaming by remember { mutableStateOf<AppShortcut?>(null) }
+    var savingScene by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -171,6 +178,22 @@ internal fun ShortcutSheet(
                 .padding(horizontal = 16.dp),
         ) {
             SheetTitle(stringResource(R.string.shortcuts))
+            SheetSectionHeader(stringResource(R.string.scenes))
+            if (scenes.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.scenes_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                SceneList(scenes, onRemoveScene)
+            }
+            FilledTonalButton(
+                onClick = { savingScene = true },
+                enabled = canSaveScene,
+                modifier = Modifier.padding(top = 8.dp),
+            ) { Text(stringResource(R.string.save_scene)) }
             val current = currentAppPackage?.takeIf { AppCatalog.isSuggestible(it) }
             if (current != null) {
                 CurrentAppCard(
@@ -210,6 +233,31 @@ internal fun ShortcutSheet(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (savingScene) {
+        var name by rememberSaveable { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { savingScene = false },
+            title = { Text(stringResource(R.string.save_scene)) },
+            text = {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.scene_name)) },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { onSaveScene(name.trim()); savingScene = false },
+                    enabled = name.isNotBlank(),
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { savingScene = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 
     renaming?.let { shortcut ->
@@ -280,6 +328,28 @@ private fun AppList(
                 leadingContent = { AppIcon(app.label, app.packageName, appPolygon(app.packageName).toShape(), SheetIconSize) },
                 trailingContent = { trailing(app) },
             ) { Text(app.label) }
+        }
+    }
+}
+
+@Composable
+private fun SceneList(scenes: List<Scene>, onRemove: (Scene) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+        scenes.forEachIndexed { index, scene ->
+            val details = listOfNotNull(
+                scene.appPackage?.let { AppCatalog.label(it) },
+                scene.volumeHalfSteps?.let { volumeLabel(it) },
+            ).joinToString(" · ").ifEmpty { stringResource(R.string.scene_nothing_set) }
+            SegmentedListItem(
+                onClick = {},
+                shapes = ListItemDefaults.segmentedShapes(index, scenes.size),
+                supportingContent = { Text(details) },
+                trailingContent = {
+                    IconButton(onClick = { onRemove(scene) }) {
+                        Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.remove_scene, scene.name))
+                    }
+                },
+            ) { Text(scene.name) }
         }
     }
 }

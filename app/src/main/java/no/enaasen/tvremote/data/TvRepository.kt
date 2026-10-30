@@ -48,6 +48,7 @@ import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.MediaState
+import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
@@ -60,10 +61,12 @@ import no.enaasen.tvremote.data.security.ClientIdentity
 import no.enaasen.tvremote.di.ApplicationScope
 import no.enaasen.tvremote.proto.remote.RemoteDirection
 import no.enaasen.tvremote.proto.remote.remoteDeviceInfo
+import no.enaasen.tvremote.proto.userdata.SavedScene
 import no.enaasen.tvremote.proto.userdata.SavedSettings
 import no.enaasen.tvremote.proto.userdata.SavedTv
 import no.enaasen.tvremote.proto.userdata.UserData
 import no.enaasen.tvremote.proto.userdata.copy
+import no.enaasen.tvremote.proto.userdata.savedScene
 import no.enaasen.tvremote.proto.userdata.savedSettings
 import no.enaasen.tvremote.proto.userdata.savedShortcut
 import no.enaasen.tvremote.proto.userdata.savedTv
@@ -98,11 +101,16 @@ class TvRepository @Inject constructor(
         val tv = data.selectedTv() ?: return@map TvApps()
         val pinned = data.pinnedShortcuts(tv)
         val suggested = tv.seenAppsList
-            .filter { seen -> pinned.none { it.packageName == seen.packageName } }
+            // Checked here too: an app recorded before it was ruled out stays in the saved list.
+            .filter { seen -> AppCatalog.isSuggestible(seen.packageName) && pinned.none { it.packageName == seen.packageName } }
             .take(MAX_SUGGESTED_APPS)
             .map { AppShortcut(AppCatalog.label(it.packageName), it.packageName) }
         TvApps(pinned, suggested)
     }.distinctUntilChanged()
+
+    val scenes: Flow<List<Scene>> = dataStore.data
+        .map { data -> data.selectedTv()?.scenesList.orEmpty().map { it.toModel() } }
+        .distinctUntilChanged()
 
     val settings: StateFlow<RemoteSettings> = dataStore.data
         .map { it.settings.toModel() }
@@ -319,6 +327,48 @@ class TvRepository @Inject constructor(
         }
     }
 
+    /** Saves how the TV is set up now, the open app and the receiver's volume, as a scene. */
+    suspend fun saveCurrentScene(name: String) {
+        val packageName = activeSession?.status?.value?.currentAppPackage?.takeIf { AppCatalog.isSuggestible(it) }
+        val volume = receiver.status.value.takeIf { it.isConnected }?.volumeHalfSteps
+        editScenes { current -> current.filterNot { it.name == name } + Scene(name, packageName, volume) }
+    }
+
+    suspend fun removeScene(name: String) = editScenes { current -> current.filterNot { it.name == name } }
+
+    private suspend fun editScenes(transform: (List<Scene>) -> List<Scene>) {
+        dataStore.updateData { data ->
+            val tv = data.selectedTv() ?: return@updateData data
+            val updated = tv.copy {
+                val edited = transform(tv.scenesList.map { it.toModel() })
+                scenes.clear()
+                scenes += edited.map { scene ->
+                    savedScene {
+                        name = scene.name
+                        scene.appPackage?.let { appPackage = it }
+                        scene.volumeHalfSteps?.let { volumeHalfSteps = it }
+                    }
+                }
+            }
+            data.copy { tvs[data.tvsList.indexOf(tv)] = updated }
+        }
+    }
+
+    /** Turns the TV on if it is off, opens the scene's app and sets its volume. */
+    fun runScene(scene: Scene) {
+        scope.launch {
+            val session = activeSession ?: return@launch
+            // Only a TV that says it is off: one that never says must not be switched off by a scene.
+            if (session.status.value.isOn == false) {
+                togglePower()
+                withTimeoutOrNull(SCENE_WAKE_TIMEOUT_MS) { session.status.first { it.isOn == true } }
+                delay(SCENE_AFTER_WAKE_MS)
+            }
+            scene.appPackage?.let(::launchApp)
+            scene.volumeHalfSteps?.let { receiver.setVolumeTo(it, settings.value.receiverMaxHalfSteps) }
+        }
+    }
+
     suspend fun addShortcut(label: String, packageName: String) = editShortcuts { current ->
         current.filterNot { it.packageName == packageName } + AppShortcut(label, packageName)
     }
@@ -471,6 +521,8 @@ class TvRepository @Inject constructor(
         const val NOW_PLAYING_POLL_MS = 3_000L
         const val NOW_PLAYING_RETRY_MS = 30_000L
         const val MAX_CACHED_ART = 8
+        const val SCENE_WAKE_TIMEOUT_MS = 20_000L
+        const val SCENE_AFTER_WAKE_MS = 3_000L
         const val MAX_SEEN_APPS = 40
         const val MAX_SUGGESTED_APPS = 10
     }
@@ -493,6 +545,12 @@ private fun SavedTv.withoutApps(): SavedTv = copy {
     seenApps.clear()
     clearLastAppPackage()
 }
+
+private fun SavedScene.toModel() = Scene(
+    name = name,
+    appPackage = appPackage.ifEmpty { null },
+    volumeHalfSteps = if (hasVolumeHalfSteps()) volumeHalfSteps else null,
+)
 
 private fun SavedSettings.toModel() = RemoteSettings(
     swipeSensitivity = swipeSensitivity

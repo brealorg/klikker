@@ -15,6 +15,7 @@ import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.ReceiverStatus
+import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
@@ -27,6 +28,7 @@ data class RemoteUiState(
     val settings: RemoteSettings = RemoteSettings(),
     val receiver: ReceiverStatus = ReceiverStatus(),
     val nowPlaying: List<MediaSessionInfo> = emptyList(),
+    val scenes: List<Scene> = emptyList(),
 )
 
 @HiltViewModel
@@ -44,7 +46,8 @@ class RemoteViewModel @Inject constructor(
             ::RemoteUiState,
         ),
         repository.nowPlaying,
-    ) { state, nowPlaying -> state.copy(nowPlaying = nowPlaying) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
+        repository.scenes,
+    ) { state, nowPlaying, scenes -> state.copy(nowPlaying = nowPlaying, scenes = scenes) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
 
     fun sendKey(keyCode: Int) = repository.sendKey(keyCode)
 
@@ -84,6 +87,16 @@ class RemoteViewModel @Inject constructor(
 
     fun renameShortcut(shortcut: AppShortcut, label: String) {
         viewModelScope.launch { repository.renameShortcut(shortcut.packageName, label) }
+    }
+
+    fun runScene(scene: Scene) = repository.runScene(scene)
+
+    fun saveScene(name: String) {
+        viewModelScope.launch { repository.saveCurrentScene(name) }
+    }
+
+    fun removeScene(scene: Scene) {
+        viewModelScope.launch { repository.removeScene(scene.name) }
     }
 
     fun removeShortcut(shortcut: AppShortcut) {

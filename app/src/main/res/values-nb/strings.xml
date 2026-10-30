@@ -141,6 +141,12 @@
     <string name="settings_show_app_names_description">Navn under app-ikonene nederst på fjernkontrollen</string>
     <string name="type_on_tv">Skriv på TV-en</string>
     <string name="hide_keyboard">Skjul tastaturet</string>
+    <string name="scenes">Scener</string>
+    <string name="scenes_hint">Sett opp TV-en slik du vil ha den, med en app åpen og volumet du liker, og lagre den her. En scene skrur på TV-en om nødvendig, åpner appen og setter volumet.</string>
+    <string name="save_scene">Lagre slik det er nå som scene</string>
+    <string name="scene_name">Navn på scenen</string>
+    <string name="scene_nothing_set">Ingenting satt</string>
+    <string name="remove_scene">Fjern scenen %1$s</string>
     <string name="tile_power">TV</string>
     <string name="tile_on">På</string>
     <string name="tile_off">Av</string>

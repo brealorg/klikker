@@ -60,6 +60,7 @@ import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.ReceiverStatus
+import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.model.TvStatus
@@ -93,6 +94,9 @@ fun RemoteRoute(
             onAddShortcut = viewModel::addShortcut,
             onRemoveShortcut = viewModel::removeShortcut,
             onRenameShortcut = viewModel::renameShortcut,
+            onRunScene = viewModel::runScene,
+            onSaveScene = viewModel::saveScene,
+            onRemoveScene = viewModel::removeScene,
             onTextChange = viewModel::setText,
             onTogglePower = viewModel::togglePower,
             onSubmitText = viewModel::submitText,
@@ -115,6 +119,9 @@ class RemoteActions(
     val onAddShortcut: (label: String, packageName: String) -> Unit,
     val onRemoveShortcut: (AppShortcut) -> Unit,
     val onRenameShortcut: (AppShortcut, String) -> Unit,
+    val onRunScene: (Scene) -> Unit,
+    val onSaveScene: (String) -> Unit,
+    val onRemoveScene: (Scene) -> Unit,
     val onTextChange: (String) -> Unit,
     val onTogglePower: () -> Unit,
     val onSubmitText: () -> Unit,
@@ -291,11 +298,16 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
             )
             ShortcutRow(
                 apps = uiState.apps,
+                scenes = uiState.scenes,
                 showNames = uiState.settings.showAppNames,
                 enabled = connected,
                 onLaunch = { shortcut ->
                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                     actions.onLaunch(shortcut)
+                },
+                onRunScene = { scene ->
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    actions.onRunScene(scene)
                 },
                 onEdit = { showShortcutSheet = true },
             )
@@ -317,9 +329,13 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
         ShortcutSheet(
             apps = uiState.apps,
             currentAppPackage = status?.currentAppPackage,
+            scenes = uiState.scenes,
+            canSaveScene = connected,
             onPin = actions.onAddShortcut,
             onRename = actions.onRenameShortcut,
             onRemove = actions.onRemoveShortcut,
+            onSaveScene = actions.onSaveScene,
+            onRemoveScene = actions.onRemoveScene,
             onDismiss = { showShortcutSheet = false },
         )
     }
@@ -441,19 +457,34 @@ private fun ReceiverStatus.toVolumeDisplay(stepHalfDb: Int, limitHalfSteps: Int)
     )
 }
 
-/** Pinned shortcuts first, then apps the TV has opened recently as suggestions. */
+/** Scenes first, then pinned shortcuts, then apps the TV has opened recently as suggestions. */
 @Composable
 private fun ShortcutRow(
     apps: TvApps,
+    scenes: List<Scene>,
     showNames: Boolean,
     enabled: Boolean,
     onLaunch: (AppShortcut) -> Unit,
+    onRunScene: (Scene) -> Unit,
     onEdit: () -> Unit,
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        items(scenes, key = { "scene:${it.name}" }) { scene ->
+            ActionTile(
+                label = scene.name,
+                showLabel = showNames,
+                icon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
+                onClick = { if (enabled) onRunScene(scene) },
+            )
+        }
+        if (scenes.isNotEmpty()) {
+            item(key = "scenes-divider") {
+                VerticalDivider(Modifier.height(48.dp).padding(horizontal = 4.dp))
+            }
+        }
         items(apps.pinned, key = { "pinned:${it.packageName}" }) { shortcut ->
             AppTile(shortcut.label, shortcut.packageName, showNames, enabled, onClick = { onLaunch(shortcut) })
         }

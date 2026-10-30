@@ -141,6 +141,18 @@ class DenonReceiver @Inject constructor(
         return true
     }
 
+    /** Sets the volume outright, within the receiver's range and [limitHalfSteps]. */
+    fun setVolumeTo(halfSteps: Int, limitHalfSteps: Int) {
+        if (commands == null) return
+        val current = _status.value
+        val volume = current.volumeHalfSteps ?: return
+        val target = halfSteps.coerceIn(0, minOf(current.maxHalfSteps, limitHalfSteps))
+        if (target == volume) return
+        lastLocalChangeAt = SystemClock.elapsedRealtime()
+        _status.update { it.copy(volumeHalfSteps = target) }
+        volumeTargets.trySend(target)
+    }
+
     private fun stopRepeat() {
         repeatJob?.cancel()
         repeatJob = null
