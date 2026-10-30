@@ -39,11 +39,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
+import no.enaasen.tvremote.data.nowplaying.CompanionClient
 import no.enaasen.tvremote.data.diagnostics.formatDuration
 import no.enaasen.tvremote.data.discovery.TvDiscovery
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
+import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
@@ -110,6 +112,26 @@ class TvRepository @Inject constructor(
         .distinctUntilChanged()
 
     val receiverStatus: StateFlow<ReceiverStatus> = receiver.status
+
+    /**
+     * What the TV's apps are playing, from the companion app on the TV; empty
+     * without it. Polled only while someone watches, and rarely while it is missing.
+     */
+    val nowPlaying: StateFlow<List<MediaSessionInfo>> = _connectionState
+        .map { (it as? ConnectionState.Connected)?.tv?.host }
+        .distinctUntilChanged()
+        .transformLatest { host ->
+            if (host == null) {
+                emit(emptyList())
+                return@transformLatest
+            }
+            while (true) {
+                val sessions = CompanionClient.fetch(host)
+                emit(sessions.orEmpty())
+                delay(if (sessions != null) NOW_PLAYING_POLL_MS else NOW_PLAYING_RETRY_MS)
+            }
+        }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Set by [no.enaasen.tvremote.service.RemoteConnectionService] while it runs. */
     private val backgroundServiceRunning = MutableStateFlow(false)
@@ -427,6 +449,8 @@ class TvRepository @Inject constructor(
         const val RELOCATE_AFTER_FAILURES = 2
         const val RELOCATE_TIMEOUT_MS = 5_000L
         const val WAKE_TIMEOUT_MS = 1_500L
+        const val NOW_PLAYING_POLL_MS = 3_000L
+        const val NOW_PLAYING_RETRY_MS = 30_000L
         const val MAX_SEEN_APPS = 40
         const val MAX_SUGGESTED_APPS = 10
     }

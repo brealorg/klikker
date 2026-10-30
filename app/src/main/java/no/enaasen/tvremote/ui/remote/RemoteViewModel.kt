@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import no.enaasen.tvremote.data.TvRepository
 import no.enaasen.tvremote.data.model.AppShortcut
 import no.enaasen.tvremote.data.model.ConnectionState
+import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
@@ -25,6 +26,7 @@ data class RemoteUiState(
     val apps: TvApps = TvApps(),
     val settings: RemoteSettings = RemoteSettings(),
     val receiver: ReceiverStatus = ReceiverStatus(),
+    val nowPlaying: List<MediaSessionInfo> = emptyList(),
 )
 
 @HiltViewModel
@@ -33,13 +35,16 @@ class RemoteViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<RemoteUiState> = combine(
-        repository.connectionState,
-        repository.tvs,
-        repository.apps,
-        repository.settings,
-        repository.receiverStatus,
-        ::RemoteUiState,
-    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
+        combine(
+            repository.connectionState,
+            repository.tvs,
+            repository.apps,
+            repository.settings,
+            repository.receiverStatus,
+            ::RemoteUiState,
+        ),
+        repository.nowPlaying,
+    ) { state, nowPlaying -> state.copy(nowPlaying = nowPlaying) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
 
     fun sendKey(keyCode: Int) = repository.sendKey(keyCode)
 

@@ -43,19 +43,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.apps.AppCatalog
+import no.enaasen.tvremote.data.model.MediaSessionInfo
+import no.enaasen.tvremote.data.model.MediaState
 import no.enaasen.tvremote.ui.theme.MorphShape
 
 private val HeroIconSize = 64.dp
 
 /**
- * What's open on the TV. The protocol reports only the app, not what it
- * plays, so this shows the app big: its icon in the app's own shape (which
- * morphs into the next app's shape when the TV switches app) on a surface
- * tinted with the icon's colour.
+ * What's open on the TV: the app's icon in the app's own shape (which morphs
+ * into the next app's shape when the TV switches app) on a surface tinted with
+ * the icon's colour. The protocol reports only the app, so what it plays comes
+ * from the companion app on the TV ([media]); without it only the app shows.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun NowPlaying(packageName: String, label: String, modifier: Modifier = Modifier) {
+internal fun NowPlaying(packageName: String, label: String, media: MediaSessionInfo?, modifier: Modifier = Modifier) {
     val home = AppCatalog.isHomeScreen(packageName)
     val icon = if (home) null else rememberAppIcon(packageName, HeroIconSize)
     val tint by produceState<Color?>(null, icon) { value = icon?.let { dominantColor(it) } }
@@ -105,19 +107,42 @@ internal fun NowPlaying(packageName: String, label: String, modifier: Modifier =
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.now_open),
+                    text = if (media == null) {
+                        stringResource(R.string.now_open)
+                    } else {
+                        stringResource(R.string.now_playing_app_state, label, stringResource(media.state.label()))
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.onSurfaceVariant,
-                )
-                Text(
-                    text = if (home) stringResource(R.string.home_screen) else label,
-                    style = MaterialTheme.typography.headlineSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    text = media?.title ?: if (home) stringResource(R.string.home_screen) else label,
+                    style = MaterialTheme.typography.headlineSmall,
+                    // A title can be long; an app name never is.
+                    maxLines = if (media?.title != null) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                media?.subtitle?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
+}
+
+private fun MediaState.label() = when (this) {
+    MediaState.Playing -> R.string.now_playing_state_playing
+    MediaState.Paused -> R.string.now_playing_state_paused
+    MediaState.Buffering -> R.string.now_playing_state_loading
+    MediaState.Stopped -> R.string.now_playing_state_stopped
 }
 
 private suspend fun dominantColor(icon: ImageBitmap): Color? = withContext(Dispatchers.Default) {

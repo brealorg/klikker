@@ -154,6 +154,11 @@
     <string name="type_on_tv">Type on the TV</string>
     <string name="hide_keyboard">Hide keyboard</string>
     <string name="now_open">Open on the TV</string>
+    <string name="now_playing_app_state">%1$s · %2$s</string>
+    <string name="now_playing_state_playing">Playing</string>
+    <string name="now_playing_state_paused">Paused</string>
+    <string name="now_playing_state_loading">Loading</string>
+    <string name="now_playing_state_stopped">Stopped</string>
     <string name="home_screen">Home screen</string>
     <string name="rename_shortcut">Rename</string>
     <string name="pin">Pin</string>

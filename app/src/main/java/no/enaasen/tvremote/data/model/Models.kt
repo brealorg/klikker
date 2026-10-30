@@ -7,6 +7,18 @@ data class Tv(
     val port: Int,
 )
 
+enum class MediaState { Playing, Paused, Buffering, Stopped }
+
+/** What one app on the TV is playing, as reported by the companion app on the TV. */
+data class MediaSessionInfo(
+    val packageName: String,
+    val state: MediaState,
+    val title: String?,
+    val subtitle: String?,
+    val positionMs: Long?,
+    val durationMs: Long?,
+)
+
 data class DiscoveredTv(
     val name: String,
     val host: String,

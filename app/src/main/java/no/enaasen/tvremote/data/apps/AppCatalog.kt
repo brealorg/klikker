@@ -53,6 +53,8 @@ object AppCatalog {
         "com.disney.disneyplus" to "Disney+",
         "com.edde746.plezy" to "Plezy",
         "com.esaba.downloader" to "Downloader",
+        // The TV's Google Cast receiver, which plays what is cast to it from a phone.
+        "com.google.android.apps.mediashell" to "Chromecast",
         "com.google.android.play.games" to "Google Play Games",
         "com.google.android.tv" to "Live Channels",
         "com.google.android.videos" to "Google TV",
@@ -109,6 +111,7 @@ object AppCatalog {
     )
 
     private val NOT_APPS = setOf(
+        "com.google.android.apps.mediashell",
         "com.google.android.apps.tv.dreamx",
         "com.google.android.backdrop",
         "com.google.android.katniss",
