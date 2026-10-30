@@ -86,6 +86,10 @@
     <string name="settings_sensitivity_description">How far you swipe for each step after the first</string>
     <string name="settings_fling">Extra steps on fast swipes</string>
     <string name="settings_fling_description">A quick flick moves up to three extra steps</string>
+    <string name="settings_volume_haptics">Volume ring vibration</string>
+    <string name="settings_volume_haptics_off">Off</string>
+    <string name="settings_volume_haptics_light">Light</string>
+    <string name="settings_volume_haptics_full">Full</string>
     <string name="settings_volume_keys">Volume buttons control the TV</string>
     <string name="settings_volume_keys_description">While the app is open and connected</string>
     <string name="settings_keep_connected">Stay connected in the background</string>

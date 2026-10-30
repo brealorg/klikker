@@ -44,6 +44,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setFlingEnabled(enabled: Boolean) = update { it.copy(flingEnabled = enabled) }
 
+    fun setVolumeHaptics(level: Int) = update { it.copy(volumeHaptics = level) }
+
     fun setVolumeKeysControlTv(enabled: Boolean) = update { it.copy(volumeKeysControlTv = enabled) }
 
     fun setKeepConnectedInBackground(enabled: Boolean) = update { it.copy(keepConnectedInBackground = enabled) }

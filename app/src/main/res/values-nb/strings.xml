@@ -78,6 +78,10 @@
     <string name="settings_sensitivity_description">Hvor langt du må sveipe for hvert steg etter det første</string>
     <string name="settings_fling">Ekstra steg ved raske sveip</string>
     <string name="settings_fling_description">Et raskt sveip flytter opptil tre steg ekstra</string>
+    <string name="settings_volume_haptics">Vibrasjon på volumringen</string>
+    <string name="settings_volume_haptics_off">Av</string>
+    <string name="settings_volume_haptics_light">Lett</string>
+    <string name="settings_volume_haptics_full">Full</string>
     <string name="settings_volume_keys">Volumknappene styrer TV-en</string>
     <string name="settings_volume_keys_description">Når appen er åpen og tilkoblet</string>
     <string name="settings_keep_connected">Hold tilkoblingen åpen i bakgrunnen</string>

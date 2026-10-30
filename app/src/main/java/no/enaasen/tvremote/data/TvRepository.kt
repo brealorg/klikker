@@ -270,6 +270,7 @@ class TvRepository @Inject constructor(
                     receiverHost = updated.receiverHost.trim()
                     receiverVolumeStep = updated.receiverVolumeStep
                     appNamesHidden = !updated.showAppNames
+                    volumeHaptics = updated.volumeHaptics
                 }
             }
         }
@@ -461,4 +462,5 @@ private fun SavedSettings.toModel() = RemoteSettings(
     receiverVolumeStep = receiverVolumeStep.takeIf { it in RemoteSettings.RECEIVER_VOLUME_STEPS }
         ?: RemoteSettings.DEFAULT_RECEIVER_VOLUME_STEP,
     showAppNames = !appNamesHidden,
+    volumeHaptics = volumeHaptics.takeIf { it in RemoteSettings.VOLUME_HAPTICS } ?: RemoteSettings.VOLUME_HAPTICS_FULL,
 )

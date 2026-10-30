@@ -51,6 +51,8 @@ message SavedSettings {
   int32 receiver_volume_step = 8;
   // Inverted so the default (false) shows names under app icons.
   bool app_names_hidden = 9;
+  // Vibration while turning the volume ring: 1 off, 2 light, 3 full; 0 means unset and maps to the default.
+  int32 volume_haptics = 10;
 }
 
 message UserData {

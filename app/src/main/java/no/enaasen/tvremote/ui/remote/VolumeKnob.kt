@@ -61,6 +61,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlinx.coroutines.launch
 import no.enaasen.tvremote.R
+import no.enaasen.tvremote.data.model.RemoteSettings
 
 /** What the volume ring shows, from the receiver when it is connected and otherwise the TV. */
 internal data class VolumeDisplay(
@@ -100,11 +101,13 @@ private const val DEAD_ZONE_FRACTION = 0.3f
 internal fun VolumeKnob(
     volume: VolumeDisplay?,
     padEnabled: Boolean,
+    haptics: Int,
     onVolumeStep: (up: Boolean) -> Unit,
     pad: @Composable (Modifier, onNudge: (SwipeDirection) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = LocalHapticFeedback.current
+    val feedback = LocalHapticFeedback.current
+    val currentHaptics by rememberUpdatedState(haptics)
     val currentOnVolumeStep by rememberUpdatedState(onVolumeStep)
     val currentVolume by rememberUpdatedState(volume)
     fun currentDegreesPerStep(): Float =
@@ -159,6 +162,7 @@ internal fun VolumeKnob(
                         var unspent = 0f
                         val degreesPerStep = currentDegreesPerStep()
                         var nearCentre = false
+                        var unticked = 0f
                         while (true) {
                             val change = awaitPointerEvent(PointerEventPass.Initial).changes
                                 .firstOrNull { it.id == down.id }
@@ -175,6 +179,7 @@ internal fun VolumeKnob(
                                 if (abs(delta) <= MAX_DEGREES_PER_EVENT) {
                                     knobRotation += delta
                                     unspent += delta
+                                    unticked += abs(delta)
                                     var steps = 0
                                     // Clockwise is up, as on an amplifier.
                                     while (abs(unspent) >= degreesPerStep && steps < MAX_STEPS_PER_EVENT) {
@@ -183,7 +188,14 @@ internal fun VolumeKnob(
                                         currentOnVolumeStep(up)
                                         steps++
                                     }
-                                    if (steps > 0) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    // Full: a tick whenever the volume moved. Light: one per 15° of turn.
+                                    val tick = when (currentHaptics) {
+                                        RemoteSettings.VOLUME_HAPTICS_OFF -> false
+                                        RemoteSettings.VOLUME_HAPTICS_LIGHT -> unticked >= DEGREES_PER_STEP
+                                        else -> steps > 0
+                                    }
+                                    if (unticked >= DEGREES_PER_STEP) unticked %= DEGREES_PER_STEP
+                                    if (tick) feedback.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                     unspent = unspent.coerceIn(-degreesPerStep, degreesPerStep)
                                 }
                             }

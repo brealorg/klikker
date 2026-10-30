@@ -42,6 +42,8 @@ data class RemoteSettings(
     val receiverVolumeStep: Int = DEFAULT_RECEIVER_VOLUME_STEP,
     /** Whether app names are shown under the icons in the shortcut row. */
     val showAppNames: Boolean = true,
+    /** Vibration while turning the volume ring, [VOLUME_HAPTICS_OFF] to [VOLUME_HAPTICS_FULL]. */
+    val volumeHaptics: Int = VOLUME_HAPTICS_FULL,
 ) {
     companion object {
         const val MIN_SWIPE_SENSITIVITY = 1
@@ -51,6 +53,10 @@ data class RemoteSettings(
         val HOLD_REPEAT_SPEEDS = 1..3
         const val DEFAULT_RECEIVER_VOLUME_STEP = 2
         val RECEIVER_VOLUME_STEPS = listOf(1, 2, 4)
+        const val VOLUME_HAPTICS_OFF = 1
+        const val VOLUME_HAPTICS_LIGHT = 2
+        const val VOLUME_HAPTICS_FULL = 3
+        val VOLUME_HAPTICS = VOLUME_HAPTICS_OFF..VOLUME_HAPTICS_FULL
     }
 }
 

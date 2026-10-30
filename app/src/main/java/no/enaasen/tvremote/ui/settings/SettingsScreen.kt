@@ -83,6 +83,7 @@ fun SettingsRoute(
         onHoldRepeatSpeedChange = viewModel::setHoldRepeatSpeed,
         onSwipeSensitivityChange = viewModel::setSwipeSensitivity,
         onFlingEnabledChange = viewModel::setFlingEnabled,
+        onVolumeHapticsChange = viewModel::setVolumeHaptics,
         onVolumeKeysChange = viewModel::setVolumeKeysControlTv,
         onKeepConnectedChange = viewModel::setKeepConnectedInBackground,
         onShowAppNamesChange = viewModel::setShowAppNames,
@@ -106,6 +107,7 @@ internal fun SettingsScreen(
     onHoldRepeatSpeedChange: (Int) -> Unit,
     onSwipeSensitivityChange: (Int) -> Unit,
     onFlingEnabledChange: (Boolean) -> Unit,
+    onVolumeHapticsChange: (Int) -> Unit,
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepConnectedChange: (Boolean) -> Unit,
     onShowAppNamesChange: (Boolean) -> Unit,
@@ -161,6 +163,13 @@ internal fun SettingsScreen(
                         checked = settings.flingEnabled,
                         shapes = shapes,
                         onCheckedChange = onFlingEnabledChange,
+                    )
+                },
+                { shapes ->
+                    VolumeHapticsSetting(
+                        level = settings.volumeHaptics,
+                        shapes = shapes,
+                        onChange = onVolumeHapticsChange,
                     )
                 },
             )
@@ -317,6 +326,33 @@ private fun HoldRepeatSpeedSetting(speed: Int, enabled: Boolean, shapes: ListIte
             }
         },
     ) { Text(stringResource(R.string.settings_hold_repeat_speed)) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VolumeHapticsSetting(level: Int, shapes: ListItemShapes, onChange: (Int) -> Unit) {
+    val labels = listOf(
+        R.string.settings_volume_haptics_off,
+        R.string.settings_volume_haptics_light,
+        R.string.settings_volume_haptics_full,
+    )
+    SegmentedListItem(
+        shapes = shapes,
+        colors = settingsItemColors(),
+        supportingContent = {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                RemoteSettings.VOLUME_HAPTICS.forEachIndexed { index, value ->
+                    SegmentedButton(
+                        selected = level == value,
+                        onClick = { onChange(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
+                    ) {
+                        Text(stringResource(labels[index]))
+                    }
+                }
+            }
+        },
+    ) { Text(stringResource(R.string.settings_volume_haptics)) }
 }
 
 @Composable

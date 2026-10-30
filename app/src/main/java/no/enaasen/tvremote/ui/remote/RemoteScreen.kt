@@ -256,6 +256,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
             VolumeKnob(
                 volume = volume,
                 padEnabled = connected,
+                haptics = uiState.settings.volumeHaptics,
                 onVolumeStep = { up -> actions.onKey(if (up) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN) },
                 pad = { padModifier, onNudge ->
                     SwipePad(
