@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -59,6 +60,15 @@ internal fun TvTextInputBar(
     var value by rememberSaveable(field.focusId, stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(field.text, TextRange(field.text.length)))
     }
+    // Every text sent to the TV in this field: its echoes and the steps it passes
+    // through while deleting are ours, anything else was changed on the TV.
+    val sent = remember(field.focusId) { mutableSetOf(field.text) }
+    LaunchedEffect(field.focusId, field.text) {
+        delay(TV_EDIT_SETTLE_MS)
+        if (field.text != value.text && field.text !in sent) {
+            value = TextFieldValue(field.text, TextRange(field.text.length))
+        }
+    }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(field.focusId) {
@@ -78,7 +88,10 @@ internal fun TvTextInputBar(
             OutlinedTextField(
                 value = value,
                 onValueChange = { new ->
-                    if (new.text != value.text) onTextChange(new.text)
+                    if (new.text != value.text) {
+                        sent += new.text
+                        onTextChange(new.text)
+                    }
                     value = new
                 },
                 label = { Text(field.label.ifBlank { stringResource(R.string.type_on_tv) }) },
@@ -97,7 +110,10 @@ internal fun TvTextInputBar(
     }
 }
 
-private val TvTextField.isPassword: Boolean
+/** Waits out the TV's own reports of our typing before taking its text as an edit made on the TV. */
+private const val TV_EDIT_SETTLE_MS = 500L
+
+internal val TvTextField.isPassword: Boolean
     get() {
         val variation = inputType and InputType.TYPE_MASK_VARIATION
         return when (inputType and InputType.TYPE_MASK_CLASS) {
