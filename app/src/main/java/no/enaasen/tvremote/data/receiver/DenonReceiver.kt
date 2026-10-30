@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
@@ -56,6 +58,10 @@ class DenonReceiver @Inject constructor(
     // the next tap would start from the stale value, so they are ignored briefly.
     @Volatile
     private var lastLocalChangeAt = 0L
+
+    // Only the latest wanted volume is sent. Queueing every step made the receiver
+    // replay a fast turn up and down for seconds after the finger had stopped.
+    private val volumeTargets = Channel<Int>(Channel.CONFLATED)
 
     private var repeatJob: Job? = null
 
@@ -152,7 +158,7 @@ class DenonReceiver @Inject constructor(
         lastLocalChangeAt = SystemClock.elapsedRealtime()
         log.info(DiagnosticCategory.Receiver, "Volume ${if (up) "up" else "down"} from the phone: $volume -> $target half-steps")
         _status.update { it.copy(volumeHalfSteps = target) }
-        commands?.trySend(DenonProtocol.setVolumeCommand(target))
+        volumeTargets.trySend(target)
     }
 
     private fun toggleMute() {
@@ -168,6 +174,8 @@ class DenonReceiver @Inject constructor(
             socket.connect(InetSocketAddress(host, DenonProtocol.PORT), CONNECT_TIMEOUT_MS)
             socket.soTimeout = READ_TIMEOUT_MS
             val outbox = Channel<String>(Channel.UNLIMITED)
+            // A target left from before a reconnect is stale.
+            while (volumeTargets.tryReceive().isSuccess) Unit
             try {
                 coroutineScope {
                     // Blocking socket reads ignore cancellation; closing the socket unblocks them.
@@ -178,12 +186,22 @@ class DenonReceiver @Inject constructor(
                             socket.close()
                         }
                     }
+                    val output = socket.outputStream
+                    val writeLock = Mutex()
+                    suspend fun write(command: String) = writeLock.withLock {
+                        output.write("$command\r".toByteArray(Charsets.US_ASCII))
+                        output.flush()
+                    }
                     launch {
-                        val output = socket.outputStream
                         for (command in outbox) {
-                            output.write("$command\r".toByteArray(Charsets.US_ASCII))
-                            output.flush()
+                            write(command)
                             // The receiver may drop commands sent closer together than this.
+                            delay(COMMAND_INTERVAL_MS)
+                        }
+                    }
+                    launch {
+                        for (target in volumeTargets) {
+                            write(DenonProtocol.setVolumeCommand(target))
                             delay(COMMAND_INTERVAL_MS)
                         }
                     }

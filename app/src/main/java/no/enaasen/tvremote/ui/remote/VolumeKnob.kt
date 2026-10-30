@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -62,7 +63,13 @@ import kotlinx.coroutines.launch
 import no.enaasen.tvremote.R
 
 /** What the volume ring shows, from the receiver when it is connected and otherwise the TV. */
-internal data class VolumeDisplay(val level: String?, val fraction: Float?, val isMuted: Boolean)
+internal data class VolumeDisplay(
+    val level: String?,
+    val fraction: Float?,
+    val isMuted: Boolean,
+    /** How many presses cover the whole ring, so one sweep of the finger covers the whole range; null for a fixed turn per press. */
+    val stepsAcrossRing: Int? = null,
+)
 
 private val RingWidth = 14.dp
 private val RingTouchWidth = 44.dp
@@ -73,12 +80,20 @@ private val NudgeDistance = 10.dp
 private const val RING_START_DEGREES = 135f
 private const val RING_SWEEP_DEGREES = 270f
 private const val DEGREES_PER_STEP = 15f
+private const val MIN_DEGREES_PER_STEP = 1f
+private const val MAX_DEGREES_PER_EVENT = 90f
+private const val MAX_STEPS_PER_EVENT = 24
+
+// Close to the centre the angle swings wildly for small moves, so that part is skipped.
+private const val DEAD_ZONE_FRACTION = 0.3f
 
 /**
  * The remote's centrepiece: a round swipe pad inside a volume ring. Dragging
- * around the ring turns the volume like a physical knob, one step (and one
- * haptic tick) per [DEGREES_PER_STEP], wherever the drag starts, so the volume
- * never jumps. The pad's scalloped edge turns with it.
+ * around the ring turns the volume like a physical knob, wherever the drag
+ * starts so the volume never jumps, and follows the finger even when it
+ * strays into the pad. One sweep around the ring covers the whole range when
+ * the volume reports [VolumeDisplay.stepsAcrossRing]. The pad's scalloped edge
+ * turns with it.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -91,6 +106,11 @@ internal fun VolumeKnob(
 ) {
     val haptics = LocalHapticFeedback.current
     val currentOnVolumeStep by rememberUpdatedState(onVolumeStep)
+    val currentVolume by rememberUpdatedState(volume)
+    fun currentDegreesPerStep(): Float =
+        currentVolume?.stepsAcrossRing?.takeIf { it > 0 }
+            ?.let { (RING_SWEEP_DEGREES / it).coerceAtLeast(MIN_DEGREES_PER_STEP) }
+            ?: DEGREES_PER_STEP
     val volumeEnabled = volume != null
     var knobRotation by remember { mutableFloatStateOf(0f) }
     var turning by remember { mutableStateOf(false) }
@@ -137,25 +157,35 @@ internal fun VolumeKnob(
                         turning = true
                         var lastAngle = angleDegrees(down.position, centre)
                         var unspent = 0f
+                        val degreesPerStep = currentDegreesPerStep()
+                        var nearCentre = false
                         while (true) {
                             val change = awaitPointerEvent(PointerEventPass.Initial).changes
                                 .firstOrNull { it.id == down.id }
                             if (change == null || !change.pressed) break
-                            val angle = angleDegrees(change.position, centre)
-                            val delta = ((angle - lastAngle + 540f) % 360f) - 180f
-                            lastAngle = angle
-                            knobRotation += delta
-                            unspent += delta
-                            // Clockwise is up, as on an amplifier.
-                            while (unspent >= DEGREES_PER_STEP) {
-                                unspent -= DEGREES_PER_STEP
-                                currentOnVolumeStep(true)
-                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            }
-                            while (unspent <= -DEGREES_PER_STEP) {
-                                unspent += DEGREES_PER_STEP
-                                currentOnVolumeStep(false)
-                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            if ((change.position - centre).getDistance() < padRadius * DEAD_ZONE_FRACTION) {
+                                nearCentre = true
+                            } else {
+                                val angle = angleDegrees(change.position, centre)
+                                // Coming back out of the dead zone the finger is somewhere new: start over from there.
+                                val delta = if (nearCentre) 0f else ((angle - lastAngle + 540f) % 360f) - 180f
+                                nearCentre = false
+                                lastAngle = angle
+                                // A real drag never turns this far between two events.
+                                if (abs(delta) <= MAX_DEGREES_PER_EVENT) {
+                                    knobRotation += delta
+                                    unspent += delta
+                                    var steps = 0
+                                    // Clockwise is up, as on an amplifier.
+                                    while (abs(unspent) >= degreesPerStep && steps < MAX_STEPS_PER_EVENT) {
+                                        val up = unspent > 0
+                                        unspent -= if (up) degreesPerStep else -degreesPerStep
+                                        currentOnVolumeStep(up)
+                                        steps++
+                                    }
+                                    if (steps > 0) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    unspent = unspent.coerceIn(-degreesPerStep, degreesPerStep)
+                                }
                             }
                             change.consume()
                         }
