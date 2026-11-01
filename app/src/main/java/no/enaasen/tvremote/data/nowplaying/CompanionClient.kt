@@ -101,9 +101,9 @@ internal object CompanionClient {
                 "Content-Length: 0\r\nConnection: close\r\n\r\n"
             exchange(host, PinningTrustManager(certificate), text, readTimeoutMs).first
         } catch (_: SSLException) {
-            // The certificate is not the one that was verified: ask again, from the start, next time.
-            verified.remove(host)
-            Answer.CertificateChanged
+            // Only a certificate verified before can have changed. A handshake that fails the first time is
+            // just a companion that can't be reached that way. Either way it is verified afresh next time.
+            if (verified.remove(host) != null) Answer.CertificateChanged else Answer.Unavailable
         } catch (_: IOException) {
             Answer.Unavailable
         }

@@ -53,9 +53,10 @@ internal class NowPlayingServer(
     private fun answer(client: Socket) = client.use { socket ->
         runCatching {
             socket.soTimeout = READ_TIMEOUT_MS
-            val reader = socket.getInputStream().bufferedReader()
-            val request = reader.readLine().orEmpty()
-            val headers = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.take(MAX_HEADERS).toList()
+            val input = socket.getInputStream().buffered()
+            // Nothing has been checked yet, so no line is read past a limit.
+            val request = input.readLimitedLine() ?: return@runCatching
+            val headers = generateSequence { input.readLimitedLine() }.takeWhile { it.isNotEmpty() }.take(MAX_HEADERS).toList()
             val token = headers.firstOrNull { it.startsWith("Authorization:", ignoreCase = true) }
                 ?.substringAfter(':')?.trim()?.removePrefix("Bearer ")?.trim()
             val path = request.substringAfter(' ').substringBefore(' ')
@@ -85,10 +86,23 @@ internal class NowPlayingServer(
         }
     }
 
+    /** A line of at most [MAX_LINE] bytes without its line break, or null at the end of the input or if it is longer. */
+    private fun java.io.InputStream.readLimitedLine(): String? {
+        val line = java.io.ByteArrayOutputStream()
+        while (true) {
+            val byte = read()
+            if (byte == -1) return if (line.size() == 0) null else line.toString(Charsets.ISO_8859_1.name())
+            if (byte == '\n'.code) return line.toString(Charsets.ISO_8859_1.name()).trimEnd('\r')
+            if (line.size() >= MAX_LINE) return null
+            line.write(byte)
+        }
+    }
+
     companion object {
         const val PORT = 6477
         private const val TAG = "NowPlayingServer"
         private const val READ_TIMEOUT_MS = 2_000
         private const val MAX_HEADERS = 64
+        private const val MAX_LINE = 4_096
     }
 }

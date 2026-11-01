@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.palette.graphics.Palette
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -74,7 +75,8 @@ private val HeroIconSize = 72.dp
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun NowPlaying(
-    packageName: String,
+    /** The app open on the TV, or null when it hasn't said, which looks like the home screen. */
+    packageName: String?,
     label: String,
     media: MediaSessionInfo?,
     controlsEnabled: Boolean,
@@ -87,8 +89,8 @@ internal fun NowPlaying(
     onMute: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val home = AppCatalog.isHomeScreen(packageName)
-    val icon = if (home) null else rememberAppIcon(packageName, HeroIconSize)
+    val home = packageName == null || AppCatalog.isHomeScreen(packageName)
+    val icon = if (packageName == null || home) null else rememberAppIcon(packageName, HeroIconSize)
     // The poster or cover, when the session has one, stands in for the app's icon.
     val artwork = remember(media?.art) { media?.art?.asImageBitmap() }
     val tint by produceState<Color?>(null, icon, artwork) { value = (artwork ?: icon)?.let { dominantColor(it) } }
@@ -121,7 +123,7 @@ internal fun NowPlaying(
                     )
                 } else {
                     Crossfade(targetState = packageName, label = "nowPlayingIcon") { shown ->
-                        if (AppCatalog.isHomeScreen(shown)) {
+                        if (shown == null || AppCatalog.isHomeScreen(shown)) {
                             Box(
                                 modifier = Modifier
                                     .size(HeroIconSize)
@@ -203,7 +205,17 @@ private fun Progress(media: MediaSessionInfo, durationMs: Long, enabled: Boolean
     val reported = media.positionMs ?: 0L
     // Where a seek was sent, shown until the TV's next report says where it really is.
     var sought by remember { mutableStateOf<Long?>(null) }
-    LaunchedEffect(reported) { sought = null }
+    // The TV's report ends it once it agrees (or says it moved elsewhere on its own); if it never does, because
+    // the seek was ignored or the media is paused, the bar goes back to the TV's word after a while.
+    LaunchedEffect(reported) {
+        if (sought?.let { abs(reported - it) < SEEK_AGREES_MS } == true) sought = null
+    }
+    LaunchedEffect(sought) {
+        if (sought != null) {
+            delay(SEEK_HOLD_MS)
+            sought = null
+        }
+    }
     var dragging by remember { mutableStateOf<Float?>(null) }
     val base = sought ?: reported
     val position by produceState(base, base, media.state) {
@@ -280,6 +292,12 @@ private fun String.withoutTrailingDuration(): String {
 }
 
 private const val PROGRESS_TICK_MS = 1_000L
+
+/** A report this close to where a seek was sent counts as the TV having got there. */
+private const val SEEK_AGREES_MS = 8_000L
+
+/** How long the position of a seek is held when the TV doesn't report getting there. */
+private const val SEEK_HOLD_MS = 6_000L
 
 private fun Float.fractionOf(width: Int) = (this / width).coerceIn(0f, 1f)
 

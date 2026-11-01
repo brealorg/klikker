@@ -57,6 +57,7 @@ internal fun AppTile(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier.width(TileWidth),
+    showLabel: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -75,7 +76,7 @@ internal fun AppTile(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         AppIcon(label, packageName, size = IconSize, modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
-        TileLabel(label)
+        if (showLabel) TileLabel(label)
     }
 }
 
@@ -86,6 +87,7 @@ internal fun ActionTile(
     icon: @Composable () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier.width(TileWidth),
+    showLabel: Boolean = true,
 ) {
     Column(
         modifier = modifier
@@ -102,7 +104,7 @@ internal fun ActionTile(
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) { icon() }
-        TileLabel(label)
+        if (showLabel) TileLabel(label)
     }
 }
 

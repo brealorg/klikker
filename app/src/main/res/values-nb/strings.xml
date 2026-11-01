@@ -137,7 +137,7 @@
     <string name="shortcuts_seen_hint">Apper du åpner på TV-en dukker opp her og ved siden av snarveiene dine.</string>
     <string name="pin_shortcut">Fest %1$s</string>
     <string name="settings_show_app_names">Vis appnavn</string>
-    <string name="settings_show_app_names_description">Navn under app-ikonene nederst på fjernkontrollen</string>
+    <string name="settings_show_app_names_description">Navn under app-ikonene i applisten</string>
     <string name="type_on_tv">Skriv på TV-en</string>
     <string name="hide_keyboard">Skjul tastaturet</string>
     <string name="scenes">Scener</string>

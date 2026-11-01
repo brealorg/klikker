@@ -161,7 +161,7 @@
     <string name="shortcuts_seen_hint">Apps you open on the TV show up here and next to your shortcuts.</string>
     <string name="pin_shortcut">Pin %1$s</string>
     <string name="settings_show_app_names">Show app names</string>
-    <string name="settings_show_app_names_description">Names under the app icons at the bottom of the remote</string>
+    <string name="settings_show_app_names_description">Names under the app icons in the app list</string>
     <string name="type_on_tv">Type on the TV</string>
     <string name="hide_keyboard">Hide keyboard</string>
     <string name="now_open">Open on the TV</string>

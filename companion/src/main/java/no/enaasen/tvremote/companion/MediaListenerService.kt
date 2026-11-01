@@ -2,13 +2,13 @@ package no.enaasen.tvremote.companion
 
 import android.app.Notification
 import android.content.ComponentName
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.Drawable
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -112,7 +112,16 @@ class MediaListenerService : NotificationListenerService() {
         }
         notificationControllers[sbn.key] = MediaController(this, token)
         val icon = sbn.notification.getLargeIcon()?.let { runCatching { it.loadDrawable(this) }.getOrNull() }?.toBitmap()
-        if (icon == null) notificationArt.remove(sbn.key) else notificationArt[sbn.key] = sbn.packageName to Art.ofBitmap("n${icon.generationId}", icon)
+        if (icon == null) {
+            notificationArt.remove(sbn.key)
+            return
+        }
+        // The notification is posted again on every update, with the same picture: the token follows
+        // the picture and not the bitmap made of it, so the phone doesn't fetch it again each time.
+        val artToken = "n${icon.contentHash()}"
+        if (notificationArt[sbn.key]?.second?.token != artToken) {
+            notificationArt[sbn.key] = sbn.packageName to Art.ofBitmap(artToken, icon)
+        }
     }
 
     override fun onListenerDisconnected() = stop()
@@ -152,3 +161,11 @@ private fun Drawable.toBitmap(): Bitmap? {
 }
 
 private fun MediaController.canSeek() = playbackState?.let { it.actions and PlaybackState.ACTION_SEEK_TO != 0L } == true
+
+/** A number that is the same for the same picture: from a small copy of it, which is cheap and enough. */
+private fun Bitmap.contentHash(): Int {
+    val side = 16
+    val small = Bitmap.createScaledBitmap(this, side, side, true)
+    val pixels = IntArray(side * side).also { small.getPixels(it, 0, side, 0, 0, side, side) }
+    return pixels.contentHashCode()
+}

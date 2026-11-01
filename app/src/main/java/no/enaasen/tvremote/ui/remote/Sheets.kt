@@ -65,6 +65,7 @@ internal fun AppsSheet(
     apps: TvApps,
     scenes: List<Scene>,
     enabled: Boolean,
+    showNames: Boolean,
     onLaunch: (AppShortcut) -> Unit,
     onRunScene: (Scene) -> Unit,
     onEdit: () -> Unit,
@@ -83,6 +84,7 @@ internal fun AppsSheet(
                     scenes.forEach { scene ->
                         ActionTile(
                             label = scene.name,
+                            showLabel = showNames,
                             icon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
                             onClick = { if (enabled) onRunScene(scene) },
                         )
@@ -92,10 +94,11 @@ internal fun AppsSheet(
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 (apps.pinned + apps.suggested).forEach { app ->
-                    AppTile(app.label, app.packageName, enabled = enabled, onClick = { onLaunch(app) })
+                    AppTile(app.label, app.packageName, enabled = enabled, onClick = { onLaunch(app) }, showLabel = showNames)
                 }
                 ActionTile(
                     label = stringResource(R.string.edit_shortcuts),
+                    showLabel = showNames,
                     icon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
                     onClick = onEdit,
                 )

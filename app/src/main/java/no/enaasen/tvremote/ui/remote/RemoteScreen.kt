@@ -258,18 +258,20 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 onDetails = actions.onOpenDiagnostics,
             )
             val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay(uiState.settings.receiverVolumeStep, uiState.settings.receiverMaxHalfSteps) ?: status?.toVolumeDisplay()
-            status?.currentAppPackage?.let { packageName ->
+            if (connected) {
+                // The keys are in this card, so it shows even when the TV hasn't said which app is open.
+                val packageName = status?.currentAppPackage
                 NowPlaying(
                     packageName = packageName,
-                    label = uiState.apps.pinned.find { it.packageName == packageName }?.label ?: AppCatalog.label(packageName),
-                    media = uiState.nowPlaying.forApp(packageName),
+                    label = packageName?.let { open -> uiState.apps.pinned.find { it.packageName == open }?.label ?: AppCatalog.label(open) }.orEmpty(),
+                    media = packageName?.let(uiState.nowPlaying::forApp),
                     controlsEnabled = connected,
                     muted = volume?.isMuted == true,
                     muteEnabled = volume != null,
                     onPlayPause = { key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) },
                     onPrevious = { key(KeyEvent.KEYCODE_MEDIA_PREVIOUS) },
                     onNext = { key(KeyEvent.KEYCODE_MEDIA_NEXT) },
-                    onSeek = { positionMs -> actions.onSeek(packageName, positionMs) },
+                    onSeek = { positionMs -> packageName?.let { actions.onSeek(it, positionMs) } },
                     onMute = { key(KeyEvent.KEYCODE_VOLUME_MUTE) },
                 )
             }
@@ -326,6 +328,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
             apps = uiState.apps,
             scenes = uiState.scenes,
             enabled = connected,
+            showNames = uiState.settings.showAppNames,
             onLaunch = { shortcut ->
                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                 showAppsSheet = false

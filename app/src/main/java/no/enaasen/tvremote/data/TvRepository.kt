@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
@@ -141,6 +143,7 @@ class TvRepository @Inject constructor(
             var pairingAttempts = 0
             var reached = false
             var failures = 0
+            var certificateRetries = 0
             while (true) {
                 val secret = companionSecret()
                 when (val fetched = CompanionClient.fetch(host, secret)) {
@@ -148,6 +151,7 @@ class TvRepository @Inject constructor(
                         pairingAttempts = 0
                         reached = true
                         failures = 0
+                        certificateRetries = 0
                         emit(coroutineScope { fetched.sessions.map { async { withArt(host, secret, it) } }.awaitAll() })
                         delay(NOW_PLAYING_POLL_MS)
                     }
@@ -155,19 +159,27 @@ class TvRepository @Inject constructor(
                         emit(emptyList())
                         // The companion doesn't know this phone yet: tell it through the TV's own remote protocol,
                         // which only a phone paired with the TV can use. A few tries, then rarely.
-                        if (pairingAttempts++ < MAX_PAIRING_ATTEMPTS) {
+                        val session = activeSession
+                        if (session == null) {
+                            // Not connected yet: nothing to send the link through, and nothing used up.
+                            delay(PAIRING_RETRY_MS)
+                        } else if (pairingAttempts < MAX_PAIRING_ATTEMPTS) {
+                            pairingAttempts++
                             log.info(DiagnosticCategory.Connection, "Pairing with the TV's companion app")
                             // No package: the TV checks a named one against its launcher apps, which this one is not.
-                            activeSession?.launchAppLink(CompanionClient.pairingLink(secret), null)
+                            session.launchAppLink(CompanionClient.pairingLink(secret), null)
                             delay(PAIRING_RETRY_MS)
                         } else {
+                            // Tried a few times without it taking: wait, then try the few again.
                             delay(NOW_PLAYING_RETRY_MS)
+                            pairingAttempts = 0
                         }
                     }
                     CompanionClient.Fetched.CertificateChanged -> {
                         // Probably reinstalled: look again at once, so it is paired again without a wait.
                         emit(emptyList())
-                        delay(CERTIFICATE_RETRY_MS)
+                        // A reinstalled companion is settled after one look; anything that keeps failing is not that.
+                        delay(if (++certificateRetries <= MAX_CERTIFICATE_RETRIES) CERTIFICATE_RETRY_MS else NOW_PLAYING_RETRY_MS)
                     }
                     CompanionClient.Fetched.Unavailable -> {
                         emit(emptyList())
@@ -199,15 +211,17 @@ class TvRepository @Inject constructor(
     @Volatile
     private var cachedCompanionSecret: String? = null
 
+    private val companionSecretLock = Mutex()
+
     /** This phone's secret for the companion apps on the TVs, made on first use. */
-    private suspend fun companionSecret(): String = cachedCompanionSecret ?: run {
-        var secret = dataStore.data.first().companionSecret
-        if (secret.isBlank()) {
-            secret = ByteArray(16).also(SecureRandom()::nextBytes).joinToString("") { "%02x".format(it) }
-            dataStore.updateData { data -> data.copy { companionSecret = secret } }
-        }
-        secret.also { cachedCompanionSecret = it }
+    private suspend fun companionSecret(): String = cachedCompanionSecret ?: companionSecretLock.withLock {
+        cachedCompanionSecret ?: dataStore.updateData { data ->
+            // Made inside the update, so the one that is kept is the one that is used.
+            if (data.companionSecret.isBlank()) data.copy { companionSecret = newCompanionSecret() } else data
+        }.companionSecret.also { cachedCompanionSecret = it }
     }
+
+    private fun newCompanionSecret() = ByteArray(16).also(SecureRandom()::nextBytes).joinToString("") { "%02x".format(it) }
 
     /** Set by [no.enaasen.tvremote.service.RemoteConnectionService] while it runs. */
     private val backgroundServiceRunning = MutableStateFlow(false)
@@ -583,6 +597,7 @@ class TvRepository @Inject constructor(
         const val QUICK_RETRIES = 12
         const val PAIRING_RETRY_MS = 5_000L
         const val CERTIFICATE_RETRY_MS = 2_000L
+        const val MAX_CERTIFICATE_RETRIES = 3
         const val MAX_PAIRING_ATTEMPTS = 3
         const val MAX_CACHED_ART = 8
         const val SCENE_WAKE_TIMEOUT_MS = 20_000L
