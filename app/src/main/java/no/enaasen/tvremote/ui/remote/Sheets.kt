@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,6 +58,55 @@ import no.enaasen.tvremote.data.model.volumeLabel
 import no.enaasen.tvremote.ui.theme.MorphShape
 
 private val SheetIconSize = 40.dp
+
+/** Every scene and app: what the row on the remote has no room for. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+internal fun AppsSheet(
+    apps: TvApps,
+    scenes: List<Scene>,
+    enabled: Boolean,
+    onLaunch: (AppShortcut) -> Unit,
+    onRunScene: (Scene) -> Unit,
+    onEdit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+        ) {
+            SheetTitle(stringResource(R.string.all_apps))
+            if (scenes.isNotEmpty()) {
+                SheetSectionHeader(stringResource(R.string.scenes))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    scenes.forEach { scene ->
+                        ActionTile(
+                            label = scene.name,
+                            showLabel = true,
+                            icon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
+                            onClick = { if (enabled) onRunScene(scene) },
+                        )
+                    }
+                }
+            }
+            if (scenes.isNotEmpty()) SheetSectionHeader(stringResource(R.string.apps))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                (apps.pinned + apps.suggested).forEach { app ->
+                    AppTile(app.label, app.packageName, showLabel = true, enabled = enabled, onClick = { onLaunch(app) })
+                }
+                ActionTile(
+                    label = stringResource(R.string.edit_shortcuts),
+                    showLabel = true,
+                    icon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
+                    onClick = onEdit,
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
 
 /** The TVs as a segmented list; the selected one is highlighted and its icon takes a scalloped shape. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -299,7 +350,7 @@ private fun CurrentAppCard(packageName: String, label: String, pinned: Boolean, 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AppIcon(label, packageName, appPolygon(packageName).toShape(), 48.dp)
+            AppIcon(label, packageName, size = 48.dp)
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.now_open), style = MaterialTheme.typography.labelMedium)
                 Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -325,7 +376,7 @@ private fun AppList(
             SegmentedListItem(
                 onClick = { onClick(app) },
                 shapes = ListItemDefaults.segmentedShapes(index, apps.size),
-                leadingContent = { AppIcon(app.label, app.packageName, appPolygon(app.packageName).toShape(), SheetIconSize) },
+                leadingContent = { AppIcon(app.label, app.packageName, size = SheetIconSize) },
                 trailingContent = { trailing(app) },
             ) { Text(app.label) }
         }

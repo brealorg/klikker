@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -59,7 +60,7 @@ import no.enaasen.tvremote.ui.theme.MorphShape
 private val IconSize = 48.dp
 private val TileWidth = 72.dp
 
-/** An app as a tappable icon with its name below, like on a launcher. */
+/** An app as a tappable icon with its name below, like on the phone's launcher. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AppTile(
@@ -68,21 +69,17 @@ internal fun AppTile(
     showLabel: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier.width(TileWidth),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    // Each app keeps its own shape, which springs into a circle while pressed.
-    val polygon = appPolygon(packageName)
-    val morph = remember(polygon) { Morph(polygon, MaterialShapes.Circle) }
-    val progress by animateFloatAsState(
-        targetValue = if (pressed) 1f else 0f,
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.9f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-        label = "tileShape",
+        label = "tilePress",
     )
     Column(
         modifier = modifier
-            .width(TileWidth)
             .clip(MaterialTheme.shapes.medium)
             .clickable(interactionSource = interactionSource, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) { contentDescription = label }
@@ -90,17 +87,22 @@ internal fun AppTile(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        AppIcon(label, packageName, MorphShape(morph, progress))
+        AppIcon(label, packageName, size = IconSize, modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
         if (showLabel) TileLabel(label)
     }
 }
 
 /** A tile in the same shape as [AppTile] for actions such as editing the row. */
 @Composable
-internal fun ActionTile(label: String, showLabel: Boolean, icon: @Composable () -> Unit, onClick: () -> Unit) {
+internal fun ActionTile(
+    label: String,
+    showLabel: Boolean,
+    icon: @Composable () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.width(TileWidth),
+) {
     Column(
-        modifier = Modifier
-            .width(TileWidth)
+        modifier = modifier
             .clip(MaterialTheme.shapes.medium)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) { contentDescription = label },
@@ -131,33 +133,22 @@ private fun TileLabel(label: String) {
     )
 }
 
-/** The app's icon in [shape], or its initial when the phone has no icon for it. */
+/** The app's icon as the phone's launcher shows it, or its initial in a circle when the phone has no icon for it. */
 @Composable
-internal fun AppIcon(label: String, packageName: String, shape: Shape, size: Dp = IconSize) {
+internal fun AppIcon(label: String, packageName: String, size: Dp = IconSize, modifier: Modifier = Modifier) {
     val current = rememberAppIcon(packageName, size)
     if (current != null) {
         // Decorative: the tile's label names the app.
-        // A hairline keeps the shape visible on icons as dark as the background.
-        Image(
-            bitmap = current,
-            contentDescription = null,
-            modifier = Modifier
-                .size(size)
-                .clip(shape)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
-        )
+        Image(bitmap = current, contentDescription = null, modifier = modifier.size(size))
     } else {
-        InitialIcon(label, shape, size)
+        InitialIcon(label, CircleShape, size, modifier)
     }
 }
 
-/** The shape an app is shown in; the same app always gets the same one. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-internal fun appPolygon(packageName: String): RoundedPolygon = TileShapes[packageName.hashCode().absoluteValue % TileShapes.size]
-
 /**
- * The app's icon without its mask, taken from the same app or its phone
- * edition installed on this phone; there is no way to get it from the TV.
+ * The app's icon as the phone's launcher shows it (with the shape the phone has chosen), taken
+ * from the same app or its phone edition installed on this phone; there is no way to get it
+ * from the TV.
  */
 @Composable
 internal fun rememberAppIcon(packageName: String, size: Dp): ImageBitmap? {
@@ -167,7 +158,7 @@ internal fun rememberAppIcon(packageName: String, size: Dp): ImageBitmap? {
         value = withContext(Dispatchers.IO) {
             AppCatalog.iconPackages(packageName).firstNotNullOfOrNull { candidate ->
                 try {
-                    context.packageManager.getApplicationIcon(candidate).toUnmaskedBitmap(sizePx).asImageBitmap()
+                    context.packageManager.getApplicationIcon(candidate).toBitmap(sizePx, sizePx).asImageBitmap()
                 } catch (_: PackageManager.NameNotFoundException) {
                     null
                 }
@@ -178,7 +169,7 @@ internal fun rememberAppIcon(packageName: String, size: Dp): ImageBitmap? {
 }
 
 @Composable
-private fun InitialIcon(label: String, shape: Shape, size: Dp) {
+private fun InitialIcon(label: String, shape: Shape, size: Dp, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val (container, content) = listOf(
         colors.primaryContainer to colors.onPrimaryContainer,
@@ -186,7 +177,7 @@ private fun InitialIcon(label: String, shape: Shape, size: Dp) {
         colors.tertiaryContainer to colors.onTertiaryContainer,
     )[label.hashCode().absoluteValue % 3]
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(shape)
             .background(container),
@@ -195,32 +186,3 @@ private fun InitialIcon(label: String, shape: Shape, size: Dp) {
         Text(label.take(1).uppercase(), style = MaterialTheme.typography.titleLarge, color = content)
     }
 }
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-private val TileShapes = listOf(
-    MaterialShapes.Cookie9Sided,
-    MaterialShapes.Clover4Leaf,
-    MaterialShapes.Sunny,
-    MaterialShapes.Cookie6Sided,
-    MaterialShapes.SoftBurst,
-    MaterialShapes.Gem,
-    MaterialShapes.Flower,
-    MaterialShapes.Puffy,
-)
-
-/**
- * The icon without the system's mask, so it can take any shape: adaptive
- * icon layers are 108dp with the visible 72dp in the middle.
- */
-private fun Drawable.toUnmaskedBitmap(sizePx: Int): Bitmap {
-    if (this !is AdaptiveIconDrawable) return toBitmap(sizePx, sizePx)
-    val bitmap = createBitmap(sizePx, sizePx)
-    val canvas = Canvas(bitmap)
-    val bleed = sizePx / 4
-    listOfNotNull(background, foreground).forEach { layer ->
-        layer.setBounds(-bleed, -bleed, sizePx + bleed, sizePx + bleed)
-        layer.draw(canvas)
-    }
-    return bitmap
-}
-

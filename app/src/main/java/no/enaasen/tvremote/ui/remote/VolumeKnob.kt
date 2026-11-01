@@ -105,6 +105,8 @@ internal fun VolumeKnob(
     onVolumeStep: (up: Boolean) -> Unit,
     pad: @Composable (Modifier, onNudge: (SwipeDirection) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
+    /** Sits in the gap at the bottom of the ring, where the thumb rests. */
+    bottomContent: @Composable () -> Unit = {},
 ) {
     val feedback = LocalHapticFeedback.current
     val currentHaptics by rememberUpdatedState(haptics)
@@ -235,7 +237,7 @@ internal fun VolumeKnob(
                         .fillMaxSize()
                         .graphicsLayer { rotationZ = knobRotation }
                         .clip(cookie)
-                        .background(if (padEnabled) colors.surfaceContainerHigh else colors.surfaceContainer),
+                        .background(if (padEnabled) colors.surfaceContainerHighest else colors.surfaceContainerHigh),
                 )
                 pad(Modifier.fillMaxSize().padding(8.dp)) { direction ->
                     // A small push toward the swipe, springing back, so each step is felt in the UI too.
@@ -254,16 +256,15 @@ internal fun VolumeKnob(
             }
 
             volume?.level?.let { level ->
-                // In the gap at the bottom of the ring.
+                // The level reads in the middle of the pad; touches pass through to it.
                 Text(
                     text = level,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (volume.isMuted) colors.outline else colors.onSurfaceVariant,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 4.dp),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = if (volume.isMuted) colors.outline else colors.onSurface,
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
+            Box(Modifier.align(Alignment.BottomCenter)) { bottomContent() }
         }
     }
 }

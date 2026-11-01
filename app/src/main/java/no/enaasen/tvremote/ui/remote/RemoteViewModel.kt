@@ -63,6 +63,8 @@ class RemoteViewModel @Inject constructor(
         },
     )
 
+    fun seek(packageName: String, positionMs: Long) = repository.seek(packageName, positionMs)
+
     fun togglePower() = repository.togglePower()
 
     fun setText(text: String) = repository.setText(text)

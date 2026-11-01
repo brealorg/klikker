@@ -6,6 +6,15 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,9 +23,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,14 +59,14 @@ import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.Morph
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.MediaState
-import no.enaasen.tvremote.ui.theme.MorphShape
 
-private val HeroIconSize = 64.dp
+private val HeroIconSize = 72.dp
 
 /**
  * What's open on the TV: the app's icon in the app's own shape (which morphs
@@ -61,7 +76,20 @@ private val HeroIconSize = 64.dp
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun NowPlaying(packageName: String, label: String, media: MediaSessionInfo?, modifier: Modifier = Modifier) {
+internal fun NowPlaying(
+    packageName: String,
+    label: String,
+    media: MediaSessionInfo?,
+    controlsEnabled: Boolean,
+    muted: Boolean,
+    muteEnabled: Boolean,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onMute: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val home = AppCatalog.isHomeScreen(packageName)
     val icon = if (home) null else rememberAppIcon(packageName, HeroIconSize)
     // The poster or cover, when the session has one, stands in for the app's icon.
@@ -75,24 +103,9 @@ internal fun NowPlaying(packageName: String, label: String, media: MediaSessionI
         label = "nowPlayingTint",
     )
 
-    // Morph from the previous app's shape to this one's when the TV switches app.
-    val polygon = if (home) MaterialShapes.Circle else appPolygon(packageName)
-    var from by remember { mutableStateOf(polygon) }
-    var to by remember { mutableStateOf(polygon) }
-    val progress = remember { Animatable(1f) }
-    LaunchedEffect(polygon) {
-        if (polygon == to) return@LaunchedEffect
-        from = to
-        to = polygon
-        progress.snapTo(0f)
-        progress.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
-    }
-    val morph = remember(from, to) { Morph(from, to) }
-    val shape = MorphShape(morph, progress.value)
-
     Surface(modifier = modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = container) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
-            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -109,14 +122,14 @@ internal fun NowPlaying(packageName: String, label: String, media: MediaSessionI
                         Box(
                             modifier = Modifier
                                 .size(HeroIconSize)
-                                .clip(shape)
+                                .clip(CircleShape)
                                 .background(colors.secondaryContainer),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = colors.onSecondaryContainer)
                         }
                     } else {
-                        AppIcon(label, shown, shape, HeroIconSize)
+                        AppIcon(label, shown, size = HeroIconSize)
                     }
                 }
             }
@@ -138,18 +151,144 @@ internal fun NowPlaying(packageName: String, label: String, media: MediaSessionI
                     maxLines = if (media?.title != null) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                media?.subtitle?.let { subtitle ->
+                media?.subtitle?.let { subtitle -> if (media.durationMs != null) subtitle.withoutTrailingDuration() else subtitle }?.takeIf { it.isNotBlank() }?.let { subtitle ->
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
+            FilledTonalIconToggleButton(
+                checked = muted,
+                onCheckedChange = { onMute() },
+                enabled = muteEnabled,
+                modifier = Modifier.align(Alignment.Top).size(40.dp),
+            ) {
+                Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
+            }
+        }
+        val duration = media?.durationMs
+        if (media != null && duration != null) {
+            Progress(media, duration, controlsEnabled, onSeek)
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalIconButton(onClick = onPrevious, enabled = controlsEnabled, modifier = Modifier.size(width = 64.dp, height = 48.dp), shapes = IconButtonDefaults.shapes()) {
+                Icon(painterResource(R.drawable.ic_skip_previous), stringResource(R.string.key_previous))
+            }
+            FilledIconButton(onClick = onPlayPause, enabled = controlsEnabled, modifier = Modifier.size(width = 88.dp, height = 56.dp), shapes = IconButtonDefaults.shapes()) {
+                Icon(painterResource(R.drawable.ic_play_pause), stringResource(R.string.key_play_pause), Modifier.size(28.dp))
+            }
+            FilledTonalIconButton(onClick = onNext, enabled = controlsEnabled, modifier = Modifier.size(width = 64.dp, height = 48.dp), shapes = IconButtonDefaults.shapes()) {
+                Icon(painterResource(R.drawable.ic_skip_next), stringResource(R.string.key_next))
+            }
+        }
         }
     }
+}
+
+/**
+ * How far into what plays. The companion reports the position every few
+ * seconds, so between reports it runs on by itself while the media plays.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun Progress(media: MediaSessionInfo, durationMs: Long, enabled: Boolean, onSeek: (Long) -> Unit) {
+    val reported = media.positionMs ?: 0L
+    // Where a seek was sent, shown until the TV's next report says where it really is.
+    var sought by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(reported) { sought = null }
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    val base = sought ?: reported
+    val position by produceState(base, base, media.state) {
+        value = base
+        while (media.state == MediaState.Playing) {
+            delay(PROGRESS_TICK_MS)
+            value = (value + PROGRESS_TICK_MS).coerceAtMost(durationMs)
+        }
+    }
+    val colors = MaterialTheme.colorScheme
+    val fraction = dragging ?: (position.toFloat() / durationMs).coerceIn(0f, 1f)
+    val seekLabel = stringResource(R.string.seek)
+    val haptics = LocalHapticFeedback.current
+    val currentOnSeek by rememberUpdatedState(onSeek)
+    Column {
+        // A generous touch strip around the thin line, so it can be grabbed with a thumb.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(32.dp)
+                .semantics { contentDescription = seekLabel }
+                .pointerInput(enabled, durationMs) {
+                    if (!enabled) return@pointerInput
+                    fun at(x: Float) = (x / size.width).coerceIn(0f, 1f)
+                    detectTapGestures { offset ->
+                        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        val target = (at(offset.x) * durationMs).toLong()
+                        sought = target
+                        currentOnSeek(target)
+                    }
+                }
+                .pointerInput(enabled, durationMs) {
+                    if (!enabled) return@pointerInput
+                    fun at(x: Float) = (x / size.width).coerceIn(0f, 1f)
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset -> dragging = at(offset.x) },
+                        onDragEnd = {
+                            dragging?.let { f ->
+                                val target = (f * durationMs).toLong()
+                                sought = target
+                                currentOnSeek(target)
+                            }
+                            dragging = null
+                        },
+                        onDragCancel = { dragging = null },
+                    ) { change, _ ->
+                        change.consume()
+                        dragging = at(change.position.x)
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            LinearWavyProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth(),
+                color = colors.primary,
+                trackColor = colors.onSurface.copy(alpha = 0.12f),
+                amplitude = { if (media.state == MediaState.Playing && dragging == null) 1f else 0f },
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            val shown = if (dragging != null) (fraction * durationMs).toLong() else position
+            Text(clock(shown), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            Text(clock(durationMs), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+        }
+    }
+}
+
+/** "S6 • E5 • Slow Horses • 47m" without the "• 47m": the bar shows the length. */
+private val TrailingDuration = Regex("""\s*[•·|]\s*(?:\d+\s*h)?\s*(?:\d+\s*m(?:in)?)?\s*(?:\d+\s*s)?\s*$""")
+
+private fun String.withoutTrailingDuration(): String {
+    val stripped = replace(TrailingDuration, "")
+    // Only when it was a duration: a bare bullet or a title that ends in a letter is left alone.
+    return if (stripped.length < length && substring(stripped.length).any { it.isDigit() }) stripped else this
+}
+
+private const val PROGRESS_TICK_MS = 500L
+
+private fun clock(ms: Long): String {
+    val total = ms / 1000
+    val h = total / 3600
+    val m = total % 3600 / 60
+    val s = total % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
 private fun MediaState.label() = when (this) {

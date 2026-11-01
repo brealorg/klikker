@@ -176,4 +176,9 @@
     <string name="pin">Pin</string>
     <string name="shortcut_pinned_state">Pinned</string>
     <string name="rename_shortcut_named">Rename %1$s</string>
+    <string name="key_previous">Previous</string>
+    <string name="key_next">Next</string>
+    <string name="seek">Seek</string>
+    <string name="all_apps">All apps</string>
+    <string name="apps">Apps</string>
 </resources>

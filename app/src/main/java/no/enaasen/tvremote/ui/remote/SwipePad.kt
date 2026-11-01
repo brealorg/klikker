@@ -274,9 +274,9 @@ fun SwipePad(
                     )
                 },
         ) {
-            if (touch == null) {
+            if (touch == null && !enabled) {
                 Text(
-                    text = stringResource(if (enabled) R.string.swipe_pad_hint else R.string.swipe_pad_state_disabled),
+                    text = stringResource(R.string.swipe_pad_state_disabled),
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(horizontal = 32.dp),

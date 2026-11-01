@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
@@ -35,7 +36,7 @@ class MediaListenerService : NotificationListenerService() {
     private fun artOf(controller: MediaController): Art? =
         controller.art() ?: notificationArt.values.firstOrNull { it.first == controller.packageName }?.second
 
-    private val server = NowPlayingServer { path ->
+    private val server = NowPlayingServer(command = ::command, route = { path ->
         val all = (activeControllers + notificationControllers.values).distinctBy { it.sessionToken }
         when {
             path == "/nowplaying" -> HttpResponse(JSON, nowPlayingJson(all, ::artOf).toByteArray(Charsets.UTF_8))
@@ -47,6 +48,20 @@ class MediaListenerService : NotificationListenerService() {
             }
             else -> null
         }
+    })
+
+    /** `/seek?package=…&position=<ms>`: moves the playing session of that app, if one can seek. */
+    private fun command(path: String): Boolean {
+        if (!path.startsWith("/seek?")) return false
+        val params = path.substringAfter('?').split("&")
+        fun param(name: String): String? = params.firstOrNull { it.startsWith("$name=") }?.substringAfter("=")
+        val packageName = param("package") ?: return false
+        val position = param("position")?.toLongOrNull()?.takeIf { it >= 0 } ?: return false
+        val all = (activeControllers + notificationControllers.values).distinctBy { it.sessionToken }
+        val target = all.filter { it.packageName == packageName && it.canSeek() }
+            .minByOrNull { if (it.playbackState?.state == PlaybackState.STATE_PLAYING) 0 else 1 } ?: return false
+        target.transportControls.seekTo(position)
+        return true
     }
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener {
@@ -116,3 +131,5 @@ private fun Drawable.toBitmap(): Bitmap? {
         draw(Canvas(it))
     }
 }
+
+private fun MediaController.canSeek() = playbackState?.let { it.actions and PlaybackState.ACTION_SEEK_TO != 0L } == true

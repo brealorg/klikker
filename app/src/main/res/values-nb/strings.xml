@@ -164,4 +164,9 @@
     <string name="pin">Fest</string>
     <string name="shortcut_pinned_state">Festet</string>
     <string name="rename_shortcut_named">Gi %1$s nytt navn</string>
+    <string name="key_previous">Forrige</string>
+    <string name="key_next">Neste</string>
+    <string name="seek">Spol</string>
+    <string name="all_apps">Alle apper</string>
+    <string name="apps">Apper</string>
 </resources>

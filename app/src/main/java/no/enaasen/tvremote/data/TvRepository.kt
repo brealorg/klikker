@@ -222,6 +222,16 @@ class TvRepository @Inject constructor(
         }
     }
 
+    /** Moves what [packageName] plays on the TV to [positionMs], through the companion app. */
+    fun seek(packageName: String, positionMs: Long) {
+        val host = (_connectionState.value as? ConnectionState.Connected)?.tv?.host ?: return
+        scope.launch {
+            if (!CompanionClient.seek(host, packageName, positionMs)) {
+                log.info(DiagnosticCategory.Connection, "The TV's companion couldn't seek ${AppCatalog.label(packageName)}")
+            }
+        }
+    }
+
     /** Makes the text field focused on the TV read [text]. */
     fun setText(text: String) {
         activeSession?.setText(text)

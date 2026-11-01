@@ -4,9 +4,15 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,12 +33,13 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -46,7 +52,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -100,6 +112,7 @@ fun RemoteRoute(
             onRemoveScene = viewModel::removeScene,
             onTextChange = viewModel::setText,
             onTogglePower = viewModel::togglePower,
+            onSeek = viewModel::seek,
             onSubmitText = viewModel::submitText,
         ),
     )
@@ -125,6 +138,7 @@ class RemoteActions(
     val onRemoveScene: (Scene) -> Unit,
     val onTextChange: (String) -> Unit,
     val onTogglePower: () -> Unit,
+    val onSeek: (packageName: String, positionMs: Long) -> Unit,
     val onSubmitText: () -> Unit,
 )
 
@@ -185,6 +199,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
     val haptics = LocalHapticFeedback.current
     var showTvSheet by rememberSaveable { mutableStateOf(false) }
     var showShortcutSheet by rememberSaveable { mutableStateOf(false) }
+    var showAppsSheet by rememberSaveable { mutableStateOf(false) }
     // The keyboard opens by itself when a TV text field gains focus, unless hidden for that field.
     val textField = status?.textField
     var hiddenTextFocusId by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -255,14 +270,27 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 onPair = { actions.onPairTv(tv) },
                 onDetails = actions.onOpenDiagnostics,
             )
+            val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay(uiState.settings.receiverVolumeStep, uiState.settings.receiverMaxHalfSteps) ?: status?.toVolumeDisplay()
             status?.currentAppPackage?.let { packageName ->
                 NowPlaying(
                     packageName = packageName,
                     label = uiState.apps.pinned.find { it.packageName == packageName }?.label ?: AppCatalog.label(packageName),
                     media = uiState.nowPlaying.forApp(packageName),
+                    controlsEnabled = connected,
+                    muted = volume?.isMuted == true,
+                    muteEnabled = volume != null,
+                    onPlayPause = { key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) },
+                    onPrevious = { key(KeyEvent.KEYCODE_MEDIA_PREVIOUS) },
+                    onNext = { key(KeyEvent.KEYCODE_MEDIA_NEXT) },
+                    onSeek = { positionMs -> actions.onSeek(packageName, positionMs) },
+                    onMute = { key(KeyEvent.KEYCODE_VOLUME_MUTE) },
                 )
             }
-            val volume = uiState.receiver.takeIf { it.isConnected }?.toVolumeDisplay(uiState.settings.receiverVolumeStep, uiState.settings.receiverMaxHalfSteps) ?: status?.toVolumeDisplay()
+            Surface(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
             VolumeKnob(
                 volume = volume,
                 padEnabled = connected,
@@ -287,31 +315,14 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     )
                 },
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            )
-            RemoteToolbar(
-                enabled = connected,
-                muted = volume?.isMuted == true,
-                volumeEnabled = volume != null,
-                onKey = key,
-                modifier = Modifier,
-            )
-            ShortcutRow(
-                apps = uiState.apps,
-                scenes = uiState.scenes,
-                showNames = uiState.settings.showAppNames,
-                enabled = connected,
-                onLaunch = { shortcut ->
-                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                    actions.onLaunch(shortcut)
+                    .fillMaxSize()
+                    .padding(8.dp),
+                bottomContent = {
+                    NavigationKeys(enabled = connected, onKey = key)
                 },
-                onRunScene = { scene ->
-                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                    actions.onRunScene(scene)
-                },
-                onEdit = { showShortcutSheet = true },
             )
+            }
+            AppsHandle(onOpen = { haptics.performHapticFeedback(HapticFeedbackType.ContextClick); showAppsSheet = true })
         }
     }
 
@@ -324,6 +335,25 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
             onRemove = actions.onRemoveTv,
             onAddTv = { showTvSheet = false; actions.onAddTv() },
             onDismiss = { showTvSheet = false },
+        )
+    }
+    if (showAppsSheet) {
+        AppsSheet(
+            apps = uiState.apps,
+            scenes = uiState.scenes,
+            enabled = connected,
+            onLaunch = { shortcut ->
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                showAppsSheet = false
+                actions.onLaunch(shortcut)
+            },
+            onRunScene = { scene ->
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                showAppsSheet = false
+                actions.onRunScene(scene)
+            },
+            onEdit = { showAppsSheet = false; showShortcutSheet = true },
+            onDismiss = { showAppsSheet = false },
         )
     }
     if (showShortcutSheet) {
@@ -411,38 +441,27 @@ private fun ConnectionMessage(
     }
 }
 
-/** Back, Home, Play/Pause and Mute: four wide, evenly spaced keys below the knob. Play is the one that stands out. */
+/** Back and Home in the gap at the bottom of the volume ring, where the thumb rests. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun RemoteToolbar(
-    enabled: Boolean,
-    muted: Boolean,
-    volumeEnabled: Boolean,
-    onKey: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(22.dp)
-    Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        val keyModifier = Modifier.weight(1f).height(60.dp)
-        FilledTonalIconButton(onClick = { onKey(KeyEvent.KEYCODE_BACK) }, enabled = enabled, shape = shape, modifier = keyModifier) {
+private fun NavigationKeys(enabled: Boolean, onKey: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Pill-shaped keys that spring into a rounder shape when pressed.
+        FilledTonalIconButton(
+            onClick = { onKey(KeyEvent.KEYCODE_BACK) },
+            enabled = enabled,
+            modifier = Modifier.size(width = 72.dp, height = 52.dp),
+            shapes = IconButtonDefaults.shapes(),
+        ) {
             Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.key_back))
         }
-        FilledTonalIconButton(onClick = { onKey(KeyEvent.KEYCODE_HOME) }, enabled = enabled, shape = shape, modifier = keyModifier) {
-            Icon(painterResource(R.drawable.ic_home), stringResource(R.string.key_home))
-        }
-        FilledIconButton(onClick = { onKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }, enabled = enabled, shape = shape, modifier = keyModifier) {
-            Icon(painterResource(R.drawable.ic_play_pause), stringResource(R.string.key_play_pause))
-        }
-        FilledTonalIconToggleButton(
-            checked = muted,
-            onCheckedChange = { onKey(KeyEvent.KEYCODE_VOLUME_MUTE) },
-            enabled = volumeEnabled,
-            shape = shape,
-            modifier = keyModifier,
+        FilledTonalIconButton(
+            onClick = { onKey(KeyEvent.KEYCODE_HOME) },
+            enabled = enabled,
+            modifier = Modifier.size(width = 72.dp, height = 52.dp),
+            shapes = IconButtonDefaults.shapes(),
         ) {
-            Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
+            Icon(painterResource(R.drawable.ic_home), stringResource(R.string.key_home))
         }
     }
 }
@@ -464,53 +483,40 @@ private fun ReceiverStatus.toVolumeDisplay(stepHalfDb: Int, limitHalfSteps: Int)
     )
 }
 
-/** Scenes first, then pinned shortcuts, then apps the TV has opened recently as suggestions. */
+/** A quiet arrow at the bottom: swipe up or tap it for the apps and scenes. */
 @Composable
-private fun ShortcutRow(
-    apps: TvApps,
-    scenes: List<Scene>,
-    showNames: Boolean,
-    enabled: Boolean,
-    onLaunch: (AppShortcut) -> Unit,
-    onRunScene: (Scene) -> Unit,
-    onEdit: () -> Unit,
-) {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun AppsHandle(onOpen: () -> Unit) {
+    val label = stringResource(R.string.all_apps)
+    val threshold = with(LocalDensity.current) { 24.dp.toPx() }
+    val currentOnOpen by rememberUpdatedState(onOpen)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(MaterialTheme.shapes.large)
+            .clickable(onClickLabel = label, role = Role.Button, onClick = onOpen)
+            .pointerInput(threshold) {
+                var pulled = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { pulled = 0f },
+                    onDragEnd = { pulled = 0f },
+                    onDragCancel = { pulled = 0f },
+                ) { change, dragAmount ->
+                    change.consume()
+                    pulled += dragAmount
+                    if (pulled < -threshold) {
+                        pulled = 0f
+                        currentOnOpen()
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
     ) {
-        items(scenes, key = { "scene:${it.name}" }) { scene ->
-            ActionTile(
-                label = scene.name,
-                showLabel = showNames,
-                icon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
-                onClick = { if (enabled) onRunScene(scene) },
-            )
-        }
-        if (scenes.isNotEmpty()) {
-            item(key = "scenes-divider") {
-                VerticalDivider(Modifier.height(48.dp).padding(horizontal = 4.dp))
-            }
-        }
-        items(apps.pinned, key = { "pinned:${it.packageName}" }) { shortcut ->
-            AppTile(shortcut.label, shortcut.packageName, showNames, enabled, onClick = { onLaunch(shortcut) })
-        }
-        if (apps.pinned.isNotEmpty() && apps.suggested.isNotEmpty()) {
-            item(key = "divider") {
-                VerticalDivider(Modifier.height(48.dp).padding(horizontal = 4.dp))
-            }
-        }
-        items(apps.suggested, key = { "suggested:${it.packageName}" }) { app ->
-            AppTile(app.label, app.packageName, showNames, enabled, onClick = { onLaunch(app) })
-        }
-        item(key = "edit") {
-            ActionTile(
-                label = stringResource(R.string.edit_shortcuts),
-                showLabel = showNames,
-                icon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
-                onClick = onEdit,
-            )
-        }
+        Icon(
+            painter = painterResource(R.drawable.ic_keyboard_arrow_down),
+            contentDescription = label,
+            modifier = Modifier.size(32.dp).rotate(180f),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        )
     }
 }
-

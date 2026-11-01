@@ -36,15 +36,23 @@ internal object CompanionClient {
         get(host, "/art?package=$packageName", readTimeoutMs = ART_READ_TIMEOUT_MS)
             ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
 
+    /** Asks the companion to move [packageName]'s playback to [positionMs]; false if it can't. */
+    suspend fun seek(host: String, packageName: String, positionMs: Long): Boolean =
+        request(host, "POST", "/seek?package=$packageName&position=$positionMs") != null
+
     /** The body of a 200 answer to `GET [path]`, or null if the companion isn't there or says no. */
     private suspend fun get(host: String, path: String, readTimeoutMs: Int = READ_TIMEOUT_MS): ByteArray? =
+        request(host, "GET", path, readTimeoutMs)
+
+    private suspend fun request(host: String, method: String, path: String, readTimeoutMs: Int = READ_TIMEOUT_MS): ByteArray? =
         withContext(Dispatchers.IO) {
             try {
                 Socket().use { socket ->
                     socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
                     socket.soTimeout = readTimeoutMs
                     socket.getOutputStream().apply {
-                        write("GET $path HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                        // The header is what the companion asks of commands, which keeps a web page from sending them.
+                        write("$method $path HTTP/1.1\r\nHost: $host\r\nX-TvRemote: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
                         flush()
                     }
                     val response = socket.getInputStream().readBytes()
