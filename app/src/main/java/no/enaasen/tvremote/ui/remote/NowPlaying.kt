@@ -121,17 +121,16 @@ internal fun NowPlaying(packageName: String, label: String, media: MediaSessionI
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = if (media == null) {
-                        stringResource(R.string.now_open)
-                    } else {
-                        stringResource(R.string.now_playing_app_state, label, stringResource(media.state.label()))
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // Without a playing session the app's name below says it all.
+                if (media != null) {
+                    Text(
+                        text = stringResource(R.string.now_playing_app_state, label, stringResource(media.state.label())),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
                     text = media?.title ?: if (home) stringResource(R.string.home_screen) else label,
                     style = MaterialTheme.typography.headlineSmall,

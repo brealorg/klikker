@@ -55,18 +55,46 @@ internal class Art private constructor(val token: String, private val bitmap: Bi
             MediaMetadata.METADATA_KEY_DISPLAY_ICON,
         )
 
-        // Only https: Android blocks cleartext downloads, and a lookup that can't work is no use.
         private val URI_KEYS = listOf(
             MediaMetadata.METADATA_KEY_ART_URI,
             MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
             MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
         )
 
+        /** A picture that is already a bitmap, such as the large icon of a media notification. */
+        fun ofBitmap(token: String, bitmap: Bitmap) = Art(token, bitmap, null)
+
         fun of(metadata: MediaMetadata): Art? {
             BITMAP_KEYS.firstNotNullOfOrNull { metadata.getBitmap(it) }?.let { return Art("b${it.generationId}", it, null) }
-            URI_KEYS.firstNotNullOfOrNull { metadata.getString(it)?.takeIf { uri -> uri.startsWith("https://") } }
-                ?.let { return Art("u${it.hashCode()}", null, it) }
+            val uris = URI_KEYS.mapNotNull { metadata.getString(it)?.takeIf(String::isNotBlank) }
+            uris.firstOrNull(::mayDownload)?.let { return Art("u${it.hashCode()}", null, it) }
+            // Say why there is no picture, without the addresses: they can carry a token.
+            if (uris.isEmpty()) {
+                Log.i(TAG, "No art: the session has no picture or picture address (keys: ${metadata.keySet().sorted()})")
+            } else {
+                Log.i(TAG, "No art: skipped ${uris.map { "${scheme(it).ifEmpty { "no scheme" }} to ${host(it).ifEmpty { "no host" }}" }}")
+            }
             return null
+        }
+
+        /** https always; plain http only to a device on the local network, where a media server usually lives. */
+        private fun mayDownload(address: String): Boolean = when (scheme(address)) {
+            "https" -> true
+            "http" -> isLocalHost(host(address))
+            else -> false
+        }
+
+        private fun scheme(address: String) = address.substringBefore(':', "").lowercase()
+
+        private fun host(address: String) = runCatching { java.net.URI(address).host }.getOrNull().orEmpty()
+
+        private fun isLocalHost(host: String): Boolean {
+            if (host.endsWith(".local")) return true
+            val octets = host.split('.').mapNotNull { it.toIntOrNull() }
+            if (octets.size != 4 || host.split('.').size != 4) return false
+            return octets[0] == 10 ||
+                (octets[0] == 172 && octets[1] in 16..31) ||
+                (octets[0] == 192 && octets[1] == 168)
         }
     }
 }

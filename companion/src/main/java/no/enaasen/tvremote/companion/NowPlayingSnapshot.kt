@@ -8,21 +8,21 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** The media sessions on this device as JSON, for the phone to read. */
-internal fun nowPlayingJson(controllers: List<MediaController>): String {
+internal fun nowPlayingJson(controllers: List<MediaController>, artOf: (MediaController) -> Art?): String {
     val sessions = JSONArray()
     // The system lists the most recently active session first; playing ones go before the rest.
     controllers.sortedBy { if (it.playbackState?.state == PlaybackState.STATE_PLAYING) 0 else 1 }
-        .forEach { sessions.put(it.toJson()) }
+        .forEach { sessions.put(it.toJson(artOf(it))) }
     return JSONObject().put("sessions", sessions).toString()
 }
 
-private fun MediaController.toJson(): JSONObject {
+private fun MediaController.toJson(art: Art?): JSONObject {
     val meta = metadata
     val playback = playbackState
     return JSONObject().apply {
         put("package", packageName)
         put("state", playback?.state.stateName())
-        art()?.let { put("art", it.token) }
+        art?.let { put("art", it.token) }
         meta?.let {
             // Streaming apps fill the display fields, music apps the plain ones.
             put("title", it.text(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) ?: it.text(MediaMetadata.METADATA_KEY_TITLE))

@@ -5,6 +5,9 @@ import android.content.ComponentName
 import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -25,13 +28,20 @@ class MediaListenerService : NotificationListenerService() {
 
     private val notificationControllers = ConcurrentHashMap<String, MediaController>()
 
+    /** The large icon of each media notification by key, the picture of last resort: some apps put it only there. */
+    private val notificationArt = ConcurrentHashMap<String, Pair<String, Art>>()
+
+    /** The session's own picture, else the one on its app's media notification. */
+    private fun artOf(controller: MediaController): Art? =
+        controller.art() ?: notificationArt.values.firstOrNull { it.first == controller.packageName }?.second
+
     private val server = NowPlayingServer { path ->
         val all = (activeControllers + notificationControllers.values).distinctBy { it.sessionToken }
         when {
-            path == "/nowplaying" -> HttpResponse(JSON, nowPlayingJson(all).toByteArray(Charsets.UTF_8))
+            path == "/nowplaying" -> HttpResponse(JSON, nowPlayingJson(all, ::artOf).toByteArray(Charsets.UTF_8))
             path.startsWith("/art?package=") -> {
                 val packageName = path.substringAfter("package=").substringBefore('&')
-                all.firstNotNullOfOrNull { controller -> controller.takeIf { it.packageName == packageName }?.art() }
+                all.firstNotNullOfOrNull { controller -> controller.takeIf { it.packageName == packageName }?.let(::artOf) }
                     ?.jpeg()
                     ?.let { HttpResponse("image/jpeg", it) }
             }
@@ -56,11 +66,19 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         notificationControllers.remove(sbn.key)
+        notificationArt.remove(sbn.key)
     }
 
     private fun track(sbn: StatusBarNotification) {
         val token = sbn.notification.mediaSessionToken()
-        if (token == null) notificationControllers.remove(sbn.key) else notificationControllers[sbn.key] = MediaController(this, token)
+        if (token == null) {
+            notificationControllers.remove(sbn.key)
+            notificationArt.remove(sbn.key)
+            return
+        }
+        notificationControllers[sbn.key] = MediaController(this, token)
+        val icon = sbn.notification.getLargeIcon()?.let { runCatching { it.loadDrawable(this) }.getOrNull() }?.toBitmap()
+        if (icon == null) notificationArt.remove(sbn.key) else notificationArt[sbn.key] = sbn.packageName to Art.ofBitmap("n${icon.generationId}", icon)
     }
 
     override fun onListenerDisconnected() = stop()
@@ -79,6 +97,7 @@ class MediaListenerService : NotificationListenerService() {
         runCatching { getSystemService(MediaSessionManager::class.java).removeOnActiveSessionsChangedListener(sessionsListener) }
         activeControllers = emptyList()
         notificationControllers.clear()
+        notificationArt.clear()
     }
 }
 
@@ -89,3 +108,11 @@ private fun Notification.mediaSessionToken(): MediaSession.Token? =
         @Suppress("DEPRECATION")
         extras.getParcelable(Notification.EXTRA_MEDIA_SESSION)
     }
+
+private fun Drawable.toBitmap(): Bitmap? {
+    if (intrinsicWidth <= 0 || intrinsicHeight <= 0) return null
+    return Bitmap.createBitmap(intrinsicWidth, intrinsicHeight, Bitmap.Config.ARGB_8888).also {
+        setBounds(0, 0, it.width, it.height)
+        draw(Canvas(it))
+    }
+}

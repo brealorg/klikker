@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,10 +27,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -294,7 +295,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 muted = volume?.isMuted == true,
                 volumeEnabled = volume != null,
                 onKey = key,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
+                modifier = Modifier,
             )
             ShortcutRow(
                 apps = uiState.apps,
@@ -410,8 +411,7 @@ private fun ConnectionMessage(
     }
 }
 
-/** Back, Home, Play/Pause and Mute, floating below the knob. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/** Back, Home, Play/Pause and Mute: four wide, evenly spaced keys below the knob. Play is the one that stands out. */
 @Composable
 private fun RemoteToolbar(
     enabled: Boolean,
@@ -420,20 +420,27 @@ private fun RemoteToolbar(
     onKey: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    HorizontalFloatingToolbar(expanded = true, modifier = modifier) {
-        IconButton(onClick = { onKey(KeyEvent.KEYCODE_BACK) }, enabled = enabled) {
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val keyModifier = Modifier.weight(1f).height(60.dp)
+        FilledTonalIconButton(onClick = { onKey(KeyEvent.KEYCODE_BACK) }, enabled = enabled, shape = shape, modifier = keyModifier) {
             Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.key_back))
         }
-        IconButton(onClick = { onKey(KeyEvent.KEYCODE_HOME) }, enabled = enabled) {
+        FilledTonalIconButton(onClick = { onKey(KeyEvent.KEYCODE_HOME) }, enabled = enabled, shape = shape, modifier = keyModifier) {
             Icon(painterResource(R.drawable.ic_home), stringResource(R.string.key_home))
         }
-        FilledIconButton(onClick = { onKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }, enabled = enabled) {
+        FilledIconButton(onClick = { onKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }, enabled = enabled, shape = shape, modifier = keyModifier) {
             Icon(painterResource(R.drawable.ic_play_pause), stringResource(R.string.key_play_pause))
         }
-        IconToggleButton(
+        FilledTonalIconToggleButton(
             checked = muted,
             onCheckedChange = { onKey(KeyEvent.KEYCODE_VOLUME_MUTE) },
             enabled = volumeEnabled,
+            shape = shape,
+            modifier = keyModifier,
         ) {
             Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
         }
