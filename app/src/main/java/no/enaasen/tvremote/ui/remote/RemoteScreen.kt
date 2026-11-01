@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -286,8 +287,10 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     onMute = { key(KeyEvent.KEYCODE_VOLUME_MUTE) },
                 )
             }
+            // The panel is a square around the ring, centred in what is left, so no space is left empty inside it.
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Surface(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.aspectRatio(1f),
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainer,
             ) {
@@ -321,6 +324,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     NavigationKeys(enabled = connected, onKey = key)
                 },
             )
+            }
             }
             AppsHandle(onOpen = { haptics.performHapticFeedback(HapticFeedbackType.ContextClick); showAppsSheet = true })
         }
