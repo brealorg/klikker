@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Fjernkontroll</string>
+    <string name="app_name">Klikker</string>
 
     <string name="navigate_back">Tilbake</string>
     <string name="cancel">Avbryt</string>
@@ -62,7 +62,7 @@
     <string name="pair">Par</string>
 
     <string name="permission_title">Gi tilgang til lokalt nettverk</string>
-    <string name="permission_message">Fjernkontrollen snakker direkte med TV-en over hjemmenettverket ditt. Ingenting sendes ut av nettverket.</string>
+    <string name="permission_message">Klikker snakker direkte med TV-en over hjemmenettverket ditt. Ingenting sendes ut av nettverket.</string>
     <string name="permission_allow">Gi tilgang</string>
     <string name="permission_open_settings">Åpne innstillinger</string>
     <string name="settings">Innstillinger</string>

@@ -60,7 +60,7 @@ fun DiagnosticsRoute(
         onShare = {
             val send = Intent(Intent.ACTION_SEND)
                 .setType("text/plain")
-                .putExtra(Intent.EXTRA_SUBJECT, "TV Remote diagnostic report")
+                .putExtra(Intent.EXTRA_SUBJECT, "Klikker diagnostic report")
                 .putExtra(Intent.EXTRA_TEXT, viewModel.buildReport())
             context.startActivity(Intent.createChooser(send, shareTitle))
         },

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TV Remote</string>
+    <string name="app_name">Klikker</string>
 
     <string name="navigate_back">Back</string>
     <string name="cancel">Cancel</string>
@@ -81,7 +81,7 @@
 
     <!-- Local network permission -->
     <string name="permission_title">Allow local network access</string>
-    <string name="permission_message">TV Remote talks directly to your TV over your home network. Nothing leaves your network.</string>
+    <string name="permission_message">Klikker talks directly to your TV over your home network. Nothing leaves your network.</string>
     <string name="permission_allow">Allow</string>
     <string name="permission_open_settings">Open settings</string>
     <!-- Settings -->

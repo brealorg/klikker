@@ -56,7 +56,7 @@ class DiagnosticsViewModel @Inject constructor(
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val connection = repository.connectionState.value
         val settings = repository.settings.value
-        appendLine("TV Remote diagnostic report")
+        appendLine("Klikker diagnostic report")
         appendLine("Generated: ${timestamp.format(Date())}")
         appendLine("App: ${packageInfo.versionName} (${packageInfo.longVersionCode})")
         appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
