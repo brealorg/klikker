@@ -33,6 +33,11 @@ internal object PairingStore {
         return read(context).fold(false) { found, secret -> MessageDigest.isEqual(secret.toByteArray(), wanted) or found }
     }
 
+    /** The answer to a phone's [Challenge], made with the secret it names, or null if none of ours has that name. */
+    @Synchronized
+    fun proof(context: Context, keyId: String, nonce: String, certificateSha256: ByteArray): String? =
+        read(context).firstOrNull { Challenge.keyId(it) == keyId }?.let { Challenge.proof(it, nonce, certificateSha256).toHex() }
+
     @Synchronized
     fun count(context: Context): Int = read(context).size
 

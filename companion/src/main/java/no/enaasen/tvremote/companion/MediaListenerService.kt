@@ -36,9 +36,12 @@ class MediaListenerService : NotificationListenerService() {
     private fun artOf(controller: MediaController): Art? =
         controller.art() ?: notificationArt.values.firstOrNull { it.first == controller.packageName }?.second
 
-    private val server = NowPlayingServer(authorize = { PairingStore.accepts(this, it) }, command = ::command, route = { path ->
+    private val identity by lazy { ServerIdentity.load() }
+
+    private val server = NowPlayingServer(authorize = ::authorize, command = ::command, route = { path ->
         val all = (activeControllers + notificationControllers.values).distinctBy { it.sessionToken }
         when {
+            path.startsWith("/challenge?") -> challenge(path)?.let { HttpResponse("text/plain", it.toByteArray()) }
             path == "/nowplaying" -> HttpResponse(JSON, nowPlayingJson(all, ::artOf).toByteArray(Charsets.UTF_8))
             path.startsWith("/art?package=") -> {
                 val packageName = path.substringAfter("package=").substringBefore('&')
@@ -49,6 +52,22 @@ class MediaListenerService : NotificationListenerService() {
             else -> null
         }
     })
+
+    /**
+     * Everything needs a paired phone's secret, except the challenge: a phone asks it before sending
+     * the secret, to know whom it would send it to. Only the name of the secret goes in it.
+     */
+    private fun authorize(token: String?, path: String): Boolean =
+        if (path.startsWith("/challenge?")) challenge(path) != null else PairingStore.accepts(this, token)
+
+    /** `/challenge?kid=…&nonce=…`: proves to a phone that this is the companion it paired with. */
+    private fun challenge(path: String): String? {
+        val params = path.substringAfter('?').split("&")
+        fun param(name: String): String? = params.firstOrNull { it.startsWith("$name=") }?.substringAfter("=")
+        val nonce = param("nonce")?.takeIf(Challenge::isNonce) ?: return null
+        val keyId = param("kid") ?: return null
+        return PairingStore.proof(this, keyId, nonce, identity.certificateSha256)
+    }
 
     /** `/seek?package=…&position=<ms>`: moves the playing session of that app, if one can seek. */
     private fun command(path: String): Boolean {
@@ -74,7 +93,7 @@ class MediaListenerService : NotificationListenerService() {
         manager.addOnActiveSessionsChangedListener(sessionsListener, component)
         activeControllers = manager.getActiveSessions(component)
         activeNotifications.orEmpty().forEach(::track)
-        server.start()
+        server.start(identity.tls)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) = track(sbn)

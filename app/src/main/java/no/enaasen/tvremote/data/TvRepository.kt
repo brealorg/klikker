@@ -139,11 +139,15 @@ class TvRepository @Inject constructor(
                 return@transformLatest
             }
             var pairingAttempts = 0
+            var reached = false
+            var failures = 0
             while (true) {
                 val secret = companionSecret()
                 when (val fetched = CompanionClient.fetch(host, secret)) {
                     is CompanionClient.Fetched.Sessions -> {
                         pairingAttempts = 0
+                        reached = true
+                        failures = 0
                         emit(coroutineScope { fetched.sessions.map { async { withArt(host, secret, it) } }.awaitAll() })
                         delay(NOW_PLAYING_POLL_MS)
                     }
@@ -160,9 +164,15 @@ class TvRepository @Inject constructor(
                             delay(NOW_PLAYING_RETRY_MS)
                         }
                     }
+                    CompanionClient.Fetched.CertificateChanged -> {
+                        // Probably reinstalled: look again at once, so it is paired again without a wait.
+                        emit(emptyList())
+                        delay(CERTIFICATE_RETRY_MS)
+                    }
                     CompanionClient.Fetched.Unavailable -> {
                         emit(emptyList())
-                        delay(NOW_PLAYING_RETRY_MS)
+                        // A companion that was there a moment ago is probably restarting: look again soon, for a minute.
+                        delay(if (reached && ++failures <= QUICK_RETRIES) NOW_PLAYING_QUICK_RETRY_MS else NOW_PLAYING_RETRY_MS)
                     }
                 }
             }
@@ -569,7 +579,10 @@ class TvRepository @Inject constructor(
         const val WAKE_TIMEOUT_MS = 1_500L
         const val NOW_PLAYING_POLL_MS = 3_000L
         const val NOW_PLAYING_RETRY_MS = 30_000L
+        const val NOW_PLAYING_QUICK_RETRY_MS = 5_000L
+        const val QUICK_RETRIES = 12
         const val PAIRING_RETRY_MS = 5_000L
+        const val CERTIFICATE_RETRY_MS = 2_000L
         const val MAX_PAIRING_ATTEMPTS = 3
         const val MAX_CACHED_ART = 8
         const val SCENE_WAKE_TIMEOUT_MS = 20_000L

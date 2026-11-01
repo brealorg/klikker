@@ -5,17 +5,27 @@ import android.graphics.BitmapFactory
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import java.util.concurrent.ConcurrentHashMap
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLSocket
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.MediaState
+import no.enaasen.tvremote.data.security.PinningTrustManager
+import no.enaasen.tvremote.data.security.sha256
 import org.json.JSONException
 import org.json.JSONObject
 
 /**
  * Reads what the TV's apps are playing from the companion app on the TV, which
- * serves it as JSON over plain HTTP to phones it has paired with (see [pairingLink]). A raw socket, because Android blocks
- * cleartext HTTP to addresses an app can't list up front.
+ * serves it as JSON over HTTPS to phones it has paired with (see [pairingLink]).
+ * Its certificate is self-signed, so before trusting it the phone has the
+ * companion prove it holds the secret (see [CompanionChallenge]), then pins it.
+ * A raw socket, since that certificate is not one the system would accept.
  */
 internal object CompanionClient {
     const val PORT = 6477
@@ -31,6 +41,9 @@ internal object CompanionClient {
         /** The companion is there but doesn't know this phone: it has to be paired. */
         data object Unauthorized : Fetched
 
+        /** The certificate is not the one verified before, as after a reinstall: worth asking again at once. */
+        data object CertificateChanged : Fetched
+
         data object Unavailable : Fetched
     }
 
@@ -38,6 +51,8 @@ internal object CompanionClient {
         class Ok(val body: ByteArray) : Answer
 
         data object Unauthorized : Answer
+
+        data object CertificateChanged : Answer
 
         data object Unavailable : Answer
     }
@@ -49,6 +64,7 @@ internal object CompanionClient {
             Fetched.Unavailable
         }
         Answer.Unauthorized -> Fetched.Unauthorized
+        Answer.CertificateChanged -> Fetched.CertificateChanged
         Answer.Unavailable -> Fetched.Unavailable
     }
 
@@ -64,6 +80,10 @@ internal object CompanionClient {
     /** The link that makes the companion on the TV remember [secret]; the phone opens it through the remote protocol. */
     fun pairingLink(secret: String) = "tvremote-companion://pair?secret=$secret"
 
+    // The certificate each companion was shown to have by the challenge, by host. It lives only as long
+    // as the app does, so a companion is verified again after a restart, and when its certificate changes.
+    private val verified = ConcurrentHashMap<String, ByteArray>()
+
     private suspend fun request(
         host: String,
         secret: String,
@@ -72,27 +92,79 @@ internal object CompanionClient {
         readTimeoutMs: Int = READ_TIMEOUT_MS,
     ): Answer = withContext(Dispatchers.IO) {
         try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
-                socket.soTimeout = readTimeoutMs
-                socket.getOutputStream().apply {
-                    write(
-                        ("$method $path HTTP/1.1\r\nHost: $host\r\nAuthorization: Bearer $secret\r\n" +
-                            "Content-Length: 0\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII),
-                    )
-                    flush()
-                }
-                val response = socket.getInputStream().readBytes()
-                val bodyStart = response.indexOfHeadersEnd()
-                val status = if (bodyStart < 0) "" else response.decodeToString(0, minOf(bodyStart, 16))
-                when {
-                    status.startsWith("HTTP/1.1 200") -> Answer.Ok(response.copyOfRange(bodyStart, response.size))
-                    status.startsWith("HTTP/1.1 401") -> Answer.Unauthorized
-                    else -> Answer.Unavailable
-                }
+            val certificate = verified[host] ?: when (val proof = verify(host, secret)) {
+                is Verification.Verified -> proof.certificateSha256.also { verified[host] = it }
+                Verification.Unauthorized -> return@withContext Answer.Unauthorized
+                Verification.Failed -> return@withContext Answer.Unavailable
             }
+            val text = "$method $path HTTP/1.1\r\nHost: $host\r\nAuthorization: Bearer $secret\r\n" +
+                "Content-Length: 0\r\nConnection: close\r\n\r\n"
+            exchange(host, PinningTrustManager(certificate), text, readTimeoutMs).first
+        } catch (_: SSLException) {
+            // The certificate is not the one that was verified: ask again, from the start, next time.
+            verified.remove(host)
+            Answer.CertificateChanged
         } catch (_: IOException) {
             Answer.Unavailable
+        }
+    }
+
+    private sealed interface Verification {
+        class Verified(val certificateSha256: ByteArray) : Verification
+
+        /** The companion doesn't know this phone's secret. */
+        data object Unauthorized : Verification
+
+        data object Failed : Verification
+    }
+
+    /**
+     * Asks the companion to prove, with [secret], that the certificate it presents is its own. Nothing
+     * secret is sent: only the name of the secret and a nonce.
+     */
+    private fun verify(host: String, secret: String): Verification {
+        val nonce = ByteArray(16).also(SecureRandom()::nextBytes).toHex()
+        val trust = PinningTrustManager(null)
+        val text = "GET /challenge?kid=${CompanionChallenge.keyId(secret)}&nonce=$nonce HTTP/1.1\r\n" +
+            "Host: $host\r\nConnection: close\r\n\r\n"
+        val (answer, _) = exchange(host, trust, text, READ_TIMEOUT_MS)
+        val certificate = trust.serverCertificate?.sha256() ?: return Verification.Failed
+        return when (answer) {
+            is Answer.Ok ->
+                if (CompanionChallenge.accepts(secret, nonce, certificate, answer.body.toString(Charsets.US_ASCII))) {
+                    Verification.Verified(certificate)
+                } else {
+                    Verification.Failed
+                }
+            Answer.Unauthorized -> Verification.Unauthorized
+            Answer.CertificateChanged, Answer.Unavailable -> Verification.Failed
+        }
+    }
+
+    /** Sends [text] over TLS, trusting what [trust] allows, and reads the whole answer. */
+    private fun exchange(host: String, trust: PinningTrustManager, text: String, readTimeoutMs: Int): Pair<Answer, X509Certificate?> {
+        val tls = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
+        val plain = Socket()
+        try {
+            plain.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
+            plain.soTimeout = readTimeoutMs
+            val socket = tls.socketFactory.createSocket(plain, host, PORT, true) as SSLSocket
+            socket.startHandshake()
+            socket.outputStream.apply {
+                write(text.toByteArray(Charsets.US_ASCII))
+                flush()
+            }
+            val response = socket.inputStream.readBytes()
+            val bodyStart = response.indexOfHeadersEnd()
+            val status = if (bodyStart < 0) "" else response.decodeToString(0, minOf(bodyStart, 16))
+            val answer = when {
+                status.startsWith("HTTP/1.1 200") -> Answer.Ok(response.copyOfRange(bodyStart, response.size))
+                status.startsWith("HTTP/1.1 401") -> Answer.Unauthorized
+                else -> Answer.Unavailable
+            }
+            return answer to trust.serverCertificate
+        } finally {
+            plain.close()
         }
     }
 

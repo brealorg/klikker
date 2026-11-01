@@ -2,14 +2,14 @@ package no.enaasen.tvremote.companion
 
 import android.util.Log
 import java.io.IOException
-import java.net.ServerSocket
+import javax.net.ssl.SSLContext
 import java.net.Socket
 import kotlin.concurrent.thread
 
 internal class HttpResponse(val contentType: String, val body: ByteArray)
 
 /**
- * A minimal HTTP server: each `GET` path is answered by [route], or with 404
+ * A minimal HTTPS server: each `GET` path is answered by [route], or with 404
  * when it returns null; each `POST` is a command handled by [command] (true if
  * done). Every request must carry `Authorization: Bearer <secret>` of a paired
  * phone, checked by [authorize], or it gets 401. The header also keeps a web
@@ -17,17 +17,17 @@ internal class HttpResponse(val contentType: String, val body: ByteArray)
  * server's consent.
  */
 internal class NowPlayingServer(
-    private val authorize: (token: String?) -> Boolean,
+    private val authorize: (token: String?, path: String) -> Boolean,
     private val route: (path: String) -> HttpResponse?,
     private val command: (path: String) -> Boolean = { false },
 ) {
     @Volatile
-    private var server: ServerSocket? = null
+    private var server: java.net.ServerSocket? = null
 
-    fun start() {
+    fun start(tls: SSLContext) {
         if (server != null) return
         val socket = try {
-            ServerSocket(PORT)
+            tls.serverSocketFactory.createServerSocket(PORT)
         } catch (e: IOException) {
             Log.w(TAG, "Could not listen on port $PORT", e)
             return
@@ -59,7 +59,7 @@ internal class NowPlayingServer(
             val token = headers.firstOrNull { it.startsWith("Authorization:", ignoreCase = true) }
                 ?.substringAfter(':')?.trim()?.removePrefix("Bearer ")?.trim()
             val path = request.substringAfter(' ').substringBefore(' ')
-            val unauthorized = !authorize(token)
+            val unauthorized = !authorize(token, path)
             val response = when {
                 unauthorized -> null
                 request.startsWith("GET ") -> route(path)
