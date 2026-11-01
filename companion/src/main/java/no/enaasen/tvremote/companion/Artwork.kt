@@ -13,8 +13,13 @@ import java.net.URL
 /** The picture a session carries for what it plays: a poster, an album cover. */
 internal class Art private constructor(val token: String, private val bitmap: Bitmap?, private val uri: String?) {
 
+    @Volatile
+    private var encoded: ByteArray? = null
+
     /** The picture as a JPEG of at most [MAX_SIDE_PX] on its longest side, or null if it can't be had. */
-    fun jpeg(): ByteArray? {
+    fun jpeg(): ByteArray? = encoded ?: encode()?.also { encoded = it }
+
+    private fun encode(): ByteArray? {
         val source = bitmap ?: uri?.let(::download) ?: return null
         val scale = MAX_SIDE_PX.toFloat() / maxOf(source.width, source.height)
         val scaled = if (scale < 1f) {
@@ -45,6 +50,9 @@ internal class Art private constructor(val token: String, private val bitmap: Bi
 
     companion object {
         private const val TAG = "Artwork"
+
+        @Volatile
+        private var lastNoArt: String? = null
         private const val MAX_SIDE_PX = 480
         private const val JPEG_QUALITY = 85
         private const val DOWNLOAD_TIMEOUT_MS = 3_000
@@ -69,10 +77,15 @@ internal class Art private constructor(val token: String, private val bitmap: Bi
             val uris = URI_KEYS.mapNotNull { metadata.getString(it)?.takeIf(String::isNotBlank) }
             uris.firstOrNull(::mayDownload)?.let { return Art("u${it.hashCode()}", null, it) }
             // Say why there is no picture, without the addresses: they can carry a token.
-            if (uris.isEmpty()) {
-                Log.i(TAG, "No art: the session has no picture or picture address (keys: ${metadata.keySet().sorted()})")
+            val reason = if (uris.isEmpty()) {
+                "the session has no picture or picture address (keys: ${metadata.keySet().sorted()})"
             } else {
-                Log.i(TAG, "No art: skipped ${uris.map { "${scheme(it).ifEmpty { "no scheme" }} to ${host(it).ifEmpty { "no host" }}" }}")
+                "skipped ${uris.map { "${scheme(it).ifEmpty { "no scheme" }} to ${host(it).ifEmpty { "no host" }}" }}"
+            }
+            // The phone asks every few seconds: say it once, not on every poll.
+            if (reason != lastNoArt) {
+                lastNoArt = reason
+                Log.i(TAG, "No art: $reason")
             }
             return null
         }

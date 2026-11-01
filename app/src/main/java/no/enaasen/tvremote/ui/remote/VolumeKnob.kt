@@ -105,8 +105,6 @@ internal fun VolumeKnob(
     onVolumeStep: (up: Boolean) -> Unit,
     pad: @Composable (Modifier, onNudge: (SwipeDirection) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
-    /** Sits in the gap at the bottom of the ring, where the thumb rests. */
-    bottomContent: @Composable () -> Unit = {},
 ) {
     val feedback = LocalHapticFeedback.current
     val currentHaptics by rememberUpdatedState(haptics)
@@ -264,7 +262,6 @@ internal fun VolumeKnob(
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
-            Box(Modifier.align(Alignment.BottomCenter)) { bottomContent() }
         }
     }
 }

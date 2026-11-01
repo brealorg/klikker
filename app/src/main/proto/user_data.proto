@@ -74,4 +74,6 @@ message UserData {
   repeated SavedShortcut shortcuts = 3;
   bool shortcuts_initialized = 4;
   SavedSettings settings = 5;
+  // Random secret of this phone for the companion app on the TVs, sent as a bearer token; empty until first used.
+  string companion_secret = 6;
 }

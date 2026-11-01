@@ -11,12 +11,15 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.protobuf.ByteString
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
+import java.security.SecureRandom
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -40,7 +43,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import no.enaasen.tvremote.data.apps.AppCatalog
 import no.enaasen.tvremote.data.diagnostics.DiagnosticCategory
 import no.enaasen.tvremote.data.diagnostics.DiagnosticLog
-import no.enaasen.tvremote.data.nowplaying.CompanionClient
 import no.enaasen.tvremote.data.diagnostics.formatDuration
 import no.enaasen.tvremote.data.discovery.TvDiscovery
 import no.enaasen.tvremote.data.model.AppShortcut
@@ -48,11 +50,12 @@ import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.MediaState
-import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
+import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
+import no.enaasen.tvremote.data.nowplaying.CompanionClient
 import no.enaasen.tvremote.data.protocol.PairingRequiredException
 import no.enaasen.tvremote.data.protocol.PairingSession
 import no.enaasen.tvremote.data.protocol.RemoteSession
@@ -135,10 +138,33 @@ class TvRepository @Inject constructor(
                 emit(emptyList())
                 return@transformLatest
             }
+            var pairingAttempts = 0
             while (true) {
-                val sessions = CompanionClient.fetch(host)
-                emit(sessions?.map { withArt(host, it) }.orEmpty())
-                delay(if (sessions != null) NOW_PLAYING_POLL_MS else NOW_PLAYING_RETRY_MS)
+                val secret = companionSecret()
+                when (val fetched = CompanionClient.fetch(host, secret)) {
+                    is CompanionClient.Fetched.Sessions -> {
+                        pairingAttempts = 0
+                        emit(coroutineScope { fetched.sessions.map { async { withArt(host, secret, it) } }.awaitAll() })
+                        delay(NOW_PLAYING_POLL_MS)
+                    }
+                    CompanionClient.Fetched.Unauthorized -> {
+                        emit(emptyList())
+                        // The companion doesn't know this phone yet: tell it through the TV's own remote protocol,
+                        // which only a phone paired with the TV can use. A few tries, then rarely.
+                        if (pairingAttempts++ < MAX_PAIRING_ATTEMPTS) {
+                            log.info(DiagnosticCategory.Connection, "Pairing with the TV's companion app")
+                            // No package: the TV checks a named one against its launcher apps, which this one is not.
+                            activeSession?.launchAppLink(CompanionClient.pairingLink(secret), null)
+                            delay(PAIRING_RETRY_MS)
+                        } else {
+                            delay(NOW_PLAYING_RETRY_MS)
+                        }
+                    }
+                    CompanionClient.Fetched.Unavailable -> {
+                        emit(emptyList())
+                        delay(NOW_PLAYING_RETRY_MS)
+                    }
+                }
             }
         }
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -149,15 +175,28 @@ class TvRepository @Inject constructor(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap?>) = size > MAX_CACHED_ART
     }
 
-    private suspend fun withArt(host: String, session: MediaSessionInfo): MediaSessionInfo {
+    private suspend fun withArt(host: String, secret: String, session: MediaSessionInfo): MediaSessionInfo {
         val token = session.artToken ?: return session
         if (session.state == MediaState.Stopped || session.title == null) return session
         val key = "${session.packageName}|$token"
         if (!synchronized(artCache) { artCache.containsKey(key) }) {
-            val art = CompanionClient.fetchArt(host, session.packageName)
+            val art = CompanionClient.fetchArt(host, secret, session.packageName)
             synchronized(artCache) { artCache[key] = art }
         }
         return session.copy(art = synchronized(artCache) { artCache[key] })
+    }
+
+    @Volatile
+    private var cachedCompanionSecret: String? = null
+
+    /** This phone's secret for the companion apps on the TVs, made on first use. */
+    private suspend fun companionSecret(): String = cachedCompanionSecret ?: run {
+        var secret = dataStore.data.first().companionSecret
+        if (secret.isBlank()) {
+            secret = ByteArray(16).also(SecureRandom()::nextBytes).joinToString("") { "%02x".format(it) }
+            dataStore.updateData { data -> data.copy { companionSecret = secret } }
+        }
+        secret.also { cachedCompanionSecret = it }
     }
 
     /** Set by [no.enaasen.tvremote.service.RemoteConnectionService] while it runs. */
@@ -226,7 +265,7 @@ class TvRepository @Inject constructor(
     fun seek(packageName: String, positionMs: Long) {
         val host = (_connectionState.value as? ConnectionState.Connected)?.tv?.host ?: return
         scope.launch {
-            if (!CompanionClient.seek(host, packageName, positionMs)) {
+            if (!CompanionClient.seek(host, companionSecret(), packageName, positionMs)) {
                 log.info(DiagnosticCategory.Connection, "The TV's companion couldn't seek ${AppCatalog.label(packageName)}")
             }
         }
@@ -530,6 +569,8 @@ class TvRepository @Inject constructor(
         const val WAKE_TIMEOUT_MS = 1_500L
         const val NOW_PLAYING_POLL_MS = 3_000L
         const val NOW_PLAYING_RETRY_MS = 30_000L
+        const val PAIRING_RETRY_MS = 5_000L
+        const val MAX_PAIRING_ATTEMPTS = 3
         const val MAX_CACHED_ART = 8
         const val SCENE_WAKE_TIMEOUT_MS = 20_000L
         const val SCENE_AFTER_WAKE_MS = 3_000L

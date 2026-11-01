@@ -40,7 +40,6 @@
 
     <!-- Swipe pad -->
     <string name="swipe_pad">Touchpad</string>
-    <string name="swipe_pad_hint">Swipe to move\nTap to select</string>
     <string name="swipe_pad_state_disabled">Not connected</string>
     <string name="direction_up">Up</string>
     <string name="direction_down">Down</string>

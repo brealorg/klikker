@@ -36,7 +36,7 @@ class MediaListenerService : NotificationListenerService() {
     private fun artOf(controller: MediaController): Art? =
         controller.art() ?: notificationArt.values.firstOrNull { it.first == controller.packageName }?.second
 
-    private val server = NowPlayingServer(command = ::command, route = { path ->
+    private val server = NowPlayingServer(authorize = { PairingStore.accepts(this, it) }, command = ::command, route = { path ->
         val all = (activeControllers + notificationControllers.values).distinctBy { it.sessionToken }
         when {
             path == "/nowplaying" -> HttpResponse(JSON, nowPlayingJson(all, ::artOf).toByteArray(Charsets.UTF_8))

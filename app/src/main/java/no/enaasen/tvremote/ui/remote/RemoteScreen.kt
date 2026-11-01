@@ -4,39 +4,29 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -44,26 +34,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,7 +63,6 @@ import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.Tv
-import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.model.TvStatus
 import no.enaasen.tvremote.data.model.tv
 import no.enaasen.tvremote.data.model.volumeLabel
@@ -287,44 +273,38 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                     onMute = { key(KeyEvent.KEYCODE_VOLUME_MUTE) },
                 )
             }
-            // The panel is a square around the ring, centred in what is left, so no space is left empty inside it.
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // The panel takes what is left of the screen: the ring on top, the navigation keys under it.
             Surface(
-                modifier = Modifier.aspectRatio(1f),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainer,
             ) {
-            VolumeKnob(
-                volume = volume,
-                padEnabled = connected,
-                haptics = uiState.settings.volumeHaptics,
-                onVolumeStep = { up -> actions.onKey(if (up) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN) },
-                pad = { padModifier, onNudge ->
-                    SwipePad(
-                        enabled = connected,
-                        sensitivity = uiState.settings.swipeSensitivity,
-                        flingEnabled = uiState.settings.flingEnabled,
-                        holdToRepeat = uiState.settings.holdToRepeat,
-                        holdRepeatSpeed = uiState.settings.holdRepeatSpeed,
-                        onDirection = { direction ->
-                            onNudge(direction)
-                            actions.onMove(direction)
+                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    VolumeKnob(
+                        volume = volume,
+                        padEnabled = connected,
+                        haptics = uiState.settings.volumeHaptics,
+                        onVolumeStep = { up -> actions.onKey(if (up) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN) },
+                        pad = { padModifier, onNudge ->
+                            SwipePad(
+                                enabled = connected,
+                                sensitivity = uiState.settings.swipeSensitivity,
+                                flingEnabled = uiState.settings.flingEnabled,
+                                holdToRepeat = uiState.settings.holdToRepeat,
+                                holdRepeatSpeed = uiState.settings.holdRepeatSpeed,
+                                onDirection = { direction ->
+                                    onNudge(direction)
+                                    actions.onMove(direction)
+                                },
+                                onSelect = { actions.onKey(KeyEvent.KEYCODE_DPAD_CENTER) },
+                                onSelectHeld = { held -> actions.onHoldKey(KeyEvent.KEYCODE_DPAD_CENTER, held) },
+                                modifier = padModifier,
+                            )
                         },
-                        onSelect = { actions.onKey(KeyEvent.KEYCODE_DPAD_CENTER) },
-                        onSelectHeld = { held -> actions.onHoldKey(KeyEvent.KEYCODE_DPAD_CENTER, held) },
-                        shape = CircleShape,
-                        containerColor = Color.Transparent,
-                        modifier = padModifier,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                bottomContent = {
                     NavigationKeys(enabled = connected, onKey = key)
-                },
-            )
-            }
+                }
             }
             AppsHandle(onOpen = { haptics.performHapticFeedback(HapticFeedbackType.ContextClick); showAppsSheet = true })
         }
@@ -445,27 +425,25 @@ private fun ConnectionMessage(
     }
 }
 
-/** Back and Home in the gap at the bottom of the volume ring, where the thumb rests. */
+/** Back and Home as two wide keys under the ring, where the thumb rests. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun NavigationKeys(enabled: Boolean, onKey: (Int) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Pill-shaped keys that spring into a rounder shape when pressed.
-        FilledTonalIconButton(
-            onClick = { onKey(KeyEvent.KEYCODE_BACK) },
-            enabled = enabled,
-            modifier = Modifier.size(width = 72.dp, height = 52.dp),
-            shapes = IconButtonDefaults.shapes(),
-        ) {
-            Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.key_back))
-        }
-        FilledTonalIconButton(
-            onClick = { onKey(KeyEvent.KEYCODE_HOME) },
-            enabled = enabled,
-            modifier = Modifier.size(width = 72.dp, height = 52.dp),
-            shapes = IconButtonDefaults.shapes(),
-        ) {
-            Icon(painterResource(R.drawable.ic_home), stringResource(R.string.key_home))
+        listOf(
+            Triple(KeyEvent.KEYCODE_BACK, R.drawable.ic_arrow_back, R.string.key_back),
+            Triple(KeyEvent.KEYCODE_HOME, R.drawable.ic_home, R.string.key_home),
+        ).forEach { (keyCode, icon, label) ->
+            FilledTonalButton(
+                onClick = { onKey(keyCode) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f).height(64.dp),
+                shapes = ButtonDefaults.shapes(),
+            ) {
+                Icon(painterResource(icon), contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text(stringResource(label))
+            }
         }
     }
 }

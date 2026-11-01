@@ -22,6 +22,21 @@
             </intent-filter>
         </activity>
 
+        <!-- The phone app pairs by opening tvremote-companion://pair?secret=... on the TV. -->
+        <activity
+            android:name=".PairActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tvremote-companion" android:host="pair" />
+            </intent-filter>
+        </activity>
+
         <!-- Notification access is the only way for an app to read other apps' media sessions. -->
         <service
             android:name=".MediaListenerService"

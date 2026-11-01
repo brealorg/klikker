@@ -39,7 +39,7 @@ class MainActivity : Activity() {
         val granted = getSystemService(NotificationManager::class.java)
             .isNotificationListenerAccessGranted(ComponentName(this, MediaListenerService::class.java))
         status.text = if (granted) {
-            "Notification access is granted.\nServing what is playing on port ${NowPlayingServer.PORT}."
+            "Notification access is granted.\nServing what is playing on port ${NowPlayingServer.PORT}.\n\nPhones paired: ${PairingStore.count(this)}"
         } else {
             "Notification access is needed to read what is playing.\n\n$MANUAL_GRANT"
         }

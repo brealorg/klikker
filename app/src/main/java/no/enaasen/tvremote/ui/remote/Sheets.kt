@@ -32,7 +32,6 @@ import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,21 +83,19 @@ internal fun AppsSheet(
                     scenes.forEach { scene ->
                         ActionTile(
                             label = scene.name,
-                            showLabel = true,
                             icon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
                             onClick = { if (enabled) onRunScene(scene) },
                         )
                     }
                 }
+                SheetSectionHeader(stringResource(R.string.apps))
             }
-            if (scenes.isNotEmpty()) SheetSectionHeader(stringResource(R.string.apps))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 (apps.pinned + apps.suggested).forEach { app ->
-                    AppTile(app.label, app.packageName, showLabel = true, enabled = enabled, onClick = { onLaunch(app) })
+                    AppTile(app.label, app.packageName, enabled = enabled, onClick = { onLaunch(app) })
                 }
                 ActionTile(
                     label = stringResource(R.string.edit_shortcuts),
-                    showLabel = true,
                     icon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
                     onClick = onEdit,
                 )
@@ -337,7 +334,6 @@ internal fun ShortcutSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CurrentAppCard(packageName: String, label: String, pinned: Boolean, onPin: (String, String) -> Unit) {
     Surface(

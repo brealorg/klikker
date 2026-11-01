@@ -2,25 +2,18 @@ package no.enaasen.tvremote.ui.remote
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -32,7 +25,6 @@ import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearWavyProgressIndicator
-import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,12 +44,16 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.graphics.shapes.Morph
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -69,10 +66,10 @@ import no.enaasen.tvremote.data.model.MediaState
 private val HeroIconSize = 72.dp
 
 /**
- * What's open on the TV: the app's icon in the app's own shape (which morphs
- * into the next app's shape when the TV switches app) on a surface tinted with
- * the icon's colour. The protocol reports only the app, so what it plays comes
- * from the companion app on the TV ([media]); without it only the app shows.
+ * What's open on the TV: the app's icon (or the picture of what plays) on a
+ * surface tinted with its colour, with the transport keys and a seekable
+ * progress bar. The protocol reports only the app, so what it plays comes from
+ * the companion app on the TV ([media]); without it only the app shows.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -103,92 +100,95 @@ internal fun NowPlaying(
         label = "nowPlayingTint",
     )
 
+    val subtitle = remember(media?.subtitle, media?.durationMs) {
+        // The bar shows the length, so a "• 47m" the app puts in the subtitle is dropped.
+        media?.subtitle?.let { if (media.durationMs != null) it.withoutTrailingDuration() else it }?.takeIf { it.isNotBlank() }
+    }
+    val skipKey = Modifier.size(width = 64.dp, height = 48.dp)
+
     Surface(modifier = modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = container) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (artwork != null) {
-                Image(
-                    bitmap = artwork,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(HeroIconSize).clip(RoundedCornerShape(16.dp)),
-                )
-            } else {
-                Crossfade(targetState = packageName, label = "nowPlayingIcon") { shown ->
-                    if (AppCatalog.isHomeScreen(shown)) {
-                        Box(
-                            modifier = Modifier
-                                .size(HeroIconSize)
-                                .clip(CircleShape)
-                                .background(colors.secondaryContainer),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = colors.onSecondaryContainer)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (artwork != null) {
+                    Image(
+                        bitmap = artwork,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(HeroIconSize).clip(RoundedCornerShape(16.dp)),
+                    )
+                } else {
+                    Crossfade(targetState = packageName, label = "nowPlayingIcon") { shown ->
+                        if (AppCatalog.isHomeScreen(shown)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(HeroIconSize)
+                                    .clip(CircleShape)
+                                    .background(colors.secondaryContainer),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = colors.onSecondaryContainer)
+                            }
+                        } else {
+                            AppIcon(label, shown, size = HeroIconSize)
                         }
-                    } else {
-                        AppIcon(label, shown, size = HeroIconSize)
                     }
                 }
-            }
-            Column(Modifier.weight(1f)) {
-                // Without a playing session the app's name below says it all.
-                if (media != null) {
+                Column(Modifier.weight(1f)) {
+                    // Without a playing session the app's name below says it all.
+                    if (media != null) {
+                        Text(
+                            text = stringResource(R.string.now_playing_app_state, label, stringResource(media.state.label())),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
-                        text = stringResource(R.string.now_playing_app_state, label, stringResource(media.state.label())),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 1,
+                        text = media?.title ?: if (home) stringResource(R.string.home_screen) else label,
+                        style = MaterialTheme.typography.headlineSmall,
+                        // A title can be long; an app name never is.
+                        maxLines = if (media?.title != null) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    subtitle?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-                Text(
-                    text = media?.title ?: if (home) stringResource(R.string.home_screen) else label,
-                    style = MaterialTheme.typography.headlineSmall,
-                    // A title can be long; an app name never is.
-                    maxLines = if (media?.title != null) 2 else 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                media?.subtitle?.let { subtitle -> if (media.durationMs != null) subtitle.withoutTrailingDuration() else subtitle }?.takeIf { it.isNotBlank() }?.let { subtitle ->
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                FilledTonalIconToggleButton(
+                    checked = muted,
+                    onCheckedChange = { onMute() },
+                    enabled = muteEnabled,
+                    modifier = Modifier.align(Alignment.Top).size(40.dp),
+                ) {
+                    Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
                 }
             }
-            FilledTonalIconToggleButton(
-                checked = muted,
-                onCheckedChange = { onMute() },
-                enabled = muteEnabled,
-                modifier = Modifier.align(Alignment.Top).size(40.dp),
+            media?.durationMs?.let { Progress(media, it, controlsEnabled, onSeek) }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.ic_volume_off), stringResource(R.string.mute))
+                FilledTonalIconButton(onClick = onPrevious, enabled = controlsEnabled, modifier = skipKey, shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.ic_skip_previous), stringResource(R.string.key_previous))
+                }
+                FilledIconButton(onClick = onPlayPause, enabled = controlsEnabled, modifier = Modifier.size(width = 88.dp, height = 56.dp), shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.ic_play_pause), stringResource(R.string.key_play_pause), Modifier.size(28.dp))
+                }
+                FilledTonalIconButton(onClick = onNext, enabled = controlsEnabled, modifier = skipKey, shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.ic_skip_next), stringResource(R.string.key_next))
+                }
             }
-        }
-        val duration = media?.durationMs
-        if (media != null && duration != null) {
-            Progress(media, duration, controlsEnabled, onSeek)
-        }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledTonalIconButton(onClick = onPrevious, enabled = controlsEnabled, modifier = Modifier.size(width = 64.dp, height = 48.dp), shapes = IconButtonDefaults.shapes()) {
-                Icon(painterResource(R.drawable.ic_skip_previous), stringResource(R.string.key_previous))
-            }
-            FilledIconButton(onClick = onPlayPause, enabled = controlsEnabled, modifier = Modifier.size(width = 88.dp, height = 56.dp), shapes = IconButtonDefaults.shapes()) {
-                Icon(painterResource(R.drawable.ic_play_pause), stringResource(R.string.key_play_pause), Modifier.size(28.dp))
-            }
-            FilledTonalIconButton(onClick = onNext, enabled = controlsEnabled, modifier = Modifier.size(width = 64.dp, height = 48.dp), shapes = IconButtonDefaults.shapes()) {
-                Icon(painterResource(R.drawable.ic_skip_next), stringResource(R.string.key_next))
-            }
-        }
         }
     }
 }
@@ -218,6 +218,12 @@ private fun Progress(media: MediaSessionInfo, durationMs: Long, enabled: Boolean
     val seekLabel = stringResource(R.string.seek)
     val haptics = LocalHapticFeedback.current
     val currentOnSeek by rememberUpdatedState(onSeek)
+    // Shows the new position at once and asks the TV to move there.
+    fun seekTo(fraction: Float) {
+        val target = (fraction * durationMs).toLong()
+        sought = target
+        currentOnSeek(target)
+    }
     Column {
         // A generous touch strip around the thin line, so it can be grabbed with a thumb.
         Box(
@@ -227,31 +233,23 @@ private fun Progress(media: MediaSessionInfo, durationMs: Long, enabled: Boolean
                 .semantics { contentDescription = seekLabel }
                 .pointerInput(enabled, durationMs) {
                     if (!enabled) return@pointerInput
-                    fun at(x: Float) = (x / size.width).coerceIn(0f, 1f)
                     detectTapGestures { offset ->
                         haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        val target = (at(offset.x) * durationMs).toLong()
-                        sought = target
-                        currentOnSeek(target)
+                        seekTo(offset.x.fractionOf(size.width))
                     }
                 }
                 .pointerInput(enabled, durationMs) {
                     if (!enabled) return@pointerInput
-                    fun at(x: Float) = (x / size.width).coerceIn(0f, 1f)
                     detectHorizontalDragGestures(
-                        onDragStart = { offset -> dragging = at(offset.x) },
+                        onDragStart = { offset -> dragging = offset.x.fractionOf(size.width) },
                         onDragEnd = {
-                            dragging?.let { f ->
-                                val target = (f * durationMs).toLong()
-                                sought = target
-                                currentOnSeek(target)
-                            }
+                            dragging?.let(::seekTo)
                             dragging = null
                         },
                         onDragCancel = { dragging = null },
                     ) { change, _ ->
                         change.consume()
-                        dragging = at(change.position.x)
+                        dragging = change.position.x.fractionOf(size.width)
                     }
                 },
             contentAlignment = Alignment.Center,
@@ -281,7 +279,9 @@ private fun String.withoutTrailingDuration(): String {
     return if (stripped.length < length && substring(stripped.length).any { it.isDigit() }) stripped else this
 }
 
-private const val PROGRESS_TICK_MS = 500L
+private const val PROGRESS_TICK_MS = 1_000L
+
+private fun Float.fractionOf(width: Int) = (this / width).coerceIn(0f, 1f)
 
 private fun clock(ms: Long): String {
     val total = ms / 1000

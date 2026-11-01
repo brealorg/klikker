@@ -14,7 +14,7 @@ import org.json.JSONObject
 
 /**
  * Reads what the TV's apps are playing from the companion app on the TV, which
- * serves it as JSON over plain HTTP. A raw socket, because Android blocks
+ * serves it as JSON over plain HTTP to phones it has paired with (see [pairingLink]). A raw socket, because Android blocks
  * cleartext HTTP to addresses an app can't list up front.
  */
 internal object CompanionClient {
@@ -24,48 +24,77 @@ internal object CompanionClient {
     // The companion may have to download the picture first.
     private const val ART_READ_TIMEOUT_MS = 6_000
 
-    /** The TV's media sessions, or null if the companion isn't there. */
-    suspend fun fetch(host: String): List<MediaSessionInfo>? = try {
-        get(host, "/nowplaying")?.toString(Charsets.UTF_8)?.let(::parse)
-    } catch (_: JSONException) {
-        null
+    /** What asking the companion for the TV's media sessions came to. */
+    sealed interface Fetched {
+        class Sessions(val sessions: List<MediaSessionInfo>) : Fetched
+
+        /** The companion is there but doesn't know this phone: it has to be paired. */
+        data object Unauthorized : Fetched
+
+        data object Unavailable : Fetched
+    }
+
+    private sealed interface Answer {
+        class Ok(val body: ByteArray) : Answer
+
+        data object Unauthorized : Answer
+
+        data object Unavailable : Answer
+    }
+
+    suspend fun fetch(host: String, secret: String): Fetched = when (val answer = request(host, secret, "GET", "/nowplaying")) {
+        is Answer.Ok -> try {
+            Fetched.Sessions(parse(answer.body.toString(Charsets.UTF_8)))
+        } catch (_: JSONException) {
+            Fetched.Unavailable
+        }
+        Answer.Unauthorized -> Fetched.Unauthorized
+        Answer.Unavailable -> Fetched.Unavailable
     }
 
     /** The picture [packageName]'s session carries, or null if it has none or it can't be had. */
-    suspend fun fetchArt(host: String, packageName: String): Bitmap? =
-        get(host, "/art?package=$packageName", readTimeoutMs = ART_READ_TIMEOUT_MS)
-            ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+    suspend fun fetchArt(host: String, secret: String, packageName: String): Bitmap? =
+        (request(host, secret, "GET", "/art?package=$packageName", readTimeoutMs = ART_READ_TIMEOUT_MS) as? Answer.Ok)
+            ?.let { BitmapFactory.decodeByteArray(it.body, 0, it.body.size) }
 
     /** Asks the companion to move [packageName]'s playback to [positionMs]; false if it can't. */
-    suspend fun seek(host: String, packageName: String, positionMs: Long): Boolean =
-        request(host, "POST", "/seek?package=$packageName&position=$positionMs") != null
+    suspend fun seek(host: String, secret: String, packageName: String, positionMs: Long): Boolean =
+        request(host, secret, "POST", "/seek?package=$packageName&position=$positionMs") is Answer.Ok
 
-    /** The body of a 200 answer to `GET [path]`, or null if the companion isn't there or says no. */
-    private suspend fun get(host: String, path: String, readTimeoutMs: Int = READ_TIMEOUT_MS): ByteArray? =
-        request(host, "GET", path, readTimeoutMs)
+    /** The link that makes the companion on the TV remember [secret]; the phone opens it through the remote protocol. */
+    fun pairingLink(secret: String) = "tvremote-companion://pair?secret=$secret"
 
-    private suspend fun request(host: String, method: String, path: String, readTimeoutMs: Int = READ_TIMEOUT_MS): ByteArray? =
-        withContext(Dispatchers.IO) {
-            try {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
-                    socket.soTimeout = readTimeoutMs
-                    socket.getOutputStream().apply {
-                        // The header is what the companion asks of commands, which keeps a web page from sending them.
-                        write("$method $path HTTP/1.1\r\nHost: $host\r\nX-TvRemote: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
-                        flush()
-                    }
-                    val response = socket.getInputStream().readBytes()
-                    val bodyStart = response.indexOfHeadersEnd()
-                    if (bodyStart < 0 || !response.decodeToString(0, minOf(bodyStart, 16)).startsWith("HTTP/1.1 200")) {
-                        return@withContext null
-                    }
-                    response.copyOfRange(bodyStart, response.size)
+    private suspend fun request(
+        host: String,
+        secret: String,
+        method: String,
+        path: String,
+        readTimeoutMs: Int = READ_TIMEOUT_MS,
+    ): Answer = withContext(Dispatchers.IO) {
+        try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
+                socket.soTimeout = readTimeoutMs
+                socket.getOutputStream().apply {
+                    write(
+                        ("$method $path HTTP/1.1\r\nHost: $host\r\nAuthorization: Bearer $secret\r\n" +
+                            "Content-Length: 0\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII),
+                    )
+                    flush()
                 }
-            } catch (_: IOException) {
-                null
+                val response = socket.getInputStream().readBytes()
+                val bodyStart = response.indexOfHeadersEnd()
+                val status = if (bodyStart < 0) "" else response.decodeToString(0, minOf(bodyStart, 16))
+                when {
+                    status.startsWith("HTTP/1.1 200") -> Answer.Ok(response.copyOfRange(bodyStart, response.size))
+                    status.startsWith("HTTP/1.1 401") -> Answer.Unauthorized
+                    else -> Answer.Unavailable
+                }
             }
+        } catch (_: IOException) {
+            Answer.Unavailable
         }
+    }
 
     /** Where the body starts, after the blank line ending the headers, or -1. */
     private fun ByteArray.indexOfHeadersEnd(): Int {

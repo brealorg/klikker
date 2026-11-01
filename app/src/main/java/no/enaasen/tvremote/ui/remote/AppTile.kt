@@ -1,16 +1,11 @@
 package no.enaasen.tvremote.ui.remote
 
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.AdaptiveIconDrawable
-import android.graphics.drawable.Drawable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -20,8 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,9 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -46,27 +39,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toBitmap
-import androidx.graphics.shapes.Morph
-import androidx.graphics.shapes.RoundedPolygon
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import no.enaasen.tvremote.data.apps.AppCatalog
-import no.enaasen.tvremote.ui.theme.MorphShape
 
 private val IconSize = 48.dp
 private val TileWidth = 72.dp
 
 /** An app as a tappable icon with its name below, like on the phone's launcher. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AppTile(
     label: String,
     packageName: String,
-    showLabel: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier.width(TileWidth),
@@ -88,7 +75,7 @@ internal fun AppTile(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         AppIcon(label, packageName, size = IconSize, modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
-        if (showLabel) TileLabel(label)
+        TileLabel(label)
     }
 }
 
@@ -96,7 +83,6 @@ internal fun AppTile(
 @Composable
 internal fun ActionTile(
     label: String,
-    showLabel: Boolean,
     icon: @Composable () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier.width(TileWidth),
@@ -116,7 +102,7 @@ internal fun ActionTile(
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) { icon() }
-        if (showLabel) TileLabel(label)
+        TileLabel(label)
     }
 }
 

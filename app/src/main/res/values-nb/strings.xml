@@ -26,7 +26,6 @@
     <string name="pair_again">Par på nytt</string>
 
     <string name="swipe_pad">Styreflate</string>
-    <string name="swipe_pad_hint">Sveip for å flytte\nTrykk for å velge</string>
     <string name="swipe_pad_state_disabled">Ikke tilkoblet</string>
     <string name="direction_up">Opp</string>
     <string name="direction_down">Ned</string>
