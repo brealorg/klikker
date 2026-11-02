@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -16,11 +18,28 @@ android {
         minSdk = 29
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
+    }
+
+    val signingProps = Properties().apply {
+        val f = file(System.getenv("KLIKKER_SIGNING") ?: "${System.getProperty("user.home")}/.android/klikker-signing.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+
+    signingConfigs {
+        if (signingProps.isNotEmpty()) {
+            create("release") {
+                storeFile = file(signingProps.getProperty("storeFile"))
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
