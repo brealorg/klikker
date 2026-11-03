@@ -38,6 +38,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installs next to the release app, with its own keystore key, data and pairings.
+            applicationIdSuffix = ".dev"
+        }
         release {
             signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
