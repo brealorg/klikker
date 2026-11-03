@@ -497,6 +497,7 @@ class TvRepository @Inject constructor(
         val tv = saved.toTv()
         val address = "${saved.host}:${saved.port}"
         var failures = 0
+        var pairingFailures = 0
         while (true) {
             _connectionState.value = ConnectionState.Connecting(tv)
             if (failures == 0) log.info(DiagnosticCategory.Connection, "Connecting to ${tv.name} ($address)")
@@ -532,6 +533,7 @@ class TvRepository @Inject constructor(
                                         detail = if (failures > 0) "After $failures failed attempt(s)" else null,
                                     )
                                     failures = 0
+                                    pairingFailures = 0
                                 }
                                 _connectionState.value = state
                             }
@@ -540,9 +542,16 @@ class TvRepository @Inject constructor(
                     }
                 }
             } catch (e: PairingRequiredException) {
-                log.error(DiagnosticCategory.Connection, "${tv.name} rejected this phone; pairing required", e)
-                _connectionState.value = ConnectionState.PairingRequired(tv)
-                return
+                pairingFailures++
+                // A TLS failure before the first message can also be a flaky network or a
+                // TV waking up. Only an explicit certificate alert, or a repeat, means unpaired.
+                if (e.certificateRejected || pairingFailures >= PAIRING_FAILURES_BEFORE_PROMPT) {
+                    log.error(DiagnosticCategory.Connection, "${tv.name} rejected this phone; pairing required", e)
+                    _connectionState.value = ConnectionState.PairingRequired(tv)
+                    return
+                }
+                log.warning(DiagnosticCategory.Connection, "Handshake with ${tv.name} failed; retrying before asking to pair", e)
+                _connectionState.value = ConnectionState.Connecting(tv)
             } catch (e: IOException) {
                 // Closing the socket on cancellation surfaces as an IOException; that's not a failure.
                 currentCoroutineContext().ensureActive()
@@ -587,6 +596,7 @@ class TvRepository @Inject constructor(
     private companion object {
         const val BACKGROUND_GRACE_MS = 30_000L
         const val INITIAL_BACKOFF_MS = 500L
+        const val PAIRING_FAILURES_BEFORE_PROMPT = 2
         const val MAX_BACKOFF_MS = 8_000L
         const val RELOCATE_AFTER_FAILURES = 2
         const val RELOCATE_TIMEOUT_MS = 5_000L

@@ -18,7 +18,12 @@ private const val CONNECT_TIMEOUT_MS = 3_000
 internal const val READ_TIMEOUT_MS = 30_000
 
 /** Thrown when the TV does not recognise this app's certificate. */
-class PairingRequiredException(cause: Throwable? = null) : IOException(cause)
+class PairingRequiredException(cause: Throwable? = null) : IOException(cause) {
+    /** True when the TV answered with an explicit TLS certificate alert, not just a failed handshake. */
+    val certificateRejected: Boolean = generateSequence(cause) { it.cause }.any { error ->
+        error.message?.let { "CERTIFICATE_UNKNOWN" in it || "BAD_CERTIFICATE" in it || "CERTIFICATE_REQUIRED" in it } == true
+    }
+}
 
 internal fun SSLContext.openSocket(host: String, port: Int): SSLSocket {
     val plain = Socket()

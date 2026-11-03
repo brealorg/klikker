@@ -5,6 +5,7 @@ import android.view.KeyEvent
 import java.util.concurrent.atomic.AtomicInteger
 import java.io.Closeable
 import java.io.EOFException
+import java.io.IOException
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLSocket
@@ -187,8 +188,10 @@ class RemoteSession private constructor(
             // means we are not paired.
             val message = try {
                 RemoteMessage.parseDelimitedFrom(input)
-            } catch (e: SSLException) {
-                throw if (receivedAny) e else PairingRequiredException(e)
+            } catch (e: IOException) {
+                // Protobuf wraps the TLS failure in an InvalidProtocolBufferException.
+                val tlsFailure = generateSequence<Throwable>(e) { it.cause }.any { it is SSLException }
+                throw if (receivedAny || !tlsFailure) e else PairingRequiredException(e)
             } ?: throw if (receivedAny) EOFException("TV closed the connection") else PairingRequiredException()
             receivedAny = true
             val now = SystemClock.elapsedRealtime()
