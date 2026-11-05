@@ -156,6 +156,8 @@
     <string name="settings_receiver_found">Found on your network</string>
     <string name="settings_receiver_checking">Checking…</string>
     <string name="settings_receiver_not_found">No Denon or Marantz receiver answered at this address</string>
+    <string name="settings_receiver_refused">The receiver is on the network but busy. Close other apps that control it (like Denon\u2019s own app) and try again</string>
+    <string name="settings_receiver_unreachable">No answer from this address. Check the IP and that the phone is on the same network, without a VPN</string>
     <string name="shortcuts_pinned">Pinned</string>
     <string name="shortcuts_seen">Seen on this TV</string>
     <string name="shortcuts_seen_hint">Apps you open on the TV show up here and next to your shortcuts.</string>

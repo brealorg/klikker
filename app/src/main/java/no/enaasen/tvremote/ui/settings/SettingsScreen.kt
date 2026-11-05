@@ -465,18 +465,24 @@ private fun ReceiverDialog(
                     value = input,
                     onValueChange = {
                         input = it
-                        if (check == ReceiverCheck.NotFound) onCheckReset()
+                        if (check.isFailure()) onCheckReset()
                     },
                     label = { Text(stringResource(R.string.ip_address)) },
                     singleLine = true,
                     enabled = !checking,
-                    isError = check == ReceiverCheck.NotFound,
+                    isError = check.isFailure(),
                     supportingText = when (check) {
                         ReceiverCheck.Checking -> {
                             { Text(stringResource(R.string.settings_receiver_checking)) }
                         }
                         ReceiverCheck.NotFound -> {
                             { Text(stringResource(R.string.settings_receiver_not_found)) }
+                        }
+                        ReceiverCheck.Refused -> {
+                            { Text(stringResource(R.string.settings_receiver_refused)) }
+                        }
+                        ReceiverCheck.Unreachable -> {
+                            { Text(stringResource(R.string.settings_receiver_unreachable)) }
                         }
                         else -> null
                     },
@@ -627,3 +633,6 @@ private fun SectionHeader(text: String) {
         modifier = Modifier.padding(start = 32.dp, top = 24.dp, end = 32.dp, bottom = 8.dp),
     )
 }
+
+private fun ReceiverCheck.isFailure() =
+    this == ReceiverCheck.NotFound || this == ReceiverCheck.Refused || this == ReceiverCheck.Unreachable

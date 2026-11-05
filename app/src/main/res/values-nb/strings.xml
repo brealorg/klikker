@@ -132,6 +132,8 @@
     <string name="settings_receiver_found">Funnet i nettverket</string>
     <string name="settings_receiver_checking">Sjekker …</string>
     <string name="settings_receiver_not_found">Ingen Denon- eller Marantz-receiver svarte på denne adressen</string>
+    <string name="settings_receiver_refused">Receiveren er på nettet, men opptatt. Lukk andre apper som styrer den (som Denons egen app) og prøv igjen</string>
+    <string name="settings_receiver_unreachable">Ingen svar fra denne adressen. Sjekk IP-adressen og at telefonen er på samme nett, uten VPN</string>
     <string name="shortcuts_pinned">Festet</string>
     <string name="shortcuts_seen">Sett på denne TV-en</string>
     <string name="shortcuts_seen_hint">Apper du åpner på TV-en dukker opp her og ved siden av snarveiene dine.</string>

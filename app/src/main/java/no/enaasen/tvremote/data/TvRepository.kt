@@ -62,6 +62,7 @@ import no.enaasen.tvremote.data.protocol.PairingRequiredException
 import no.enaasen.tvremote.data.protocol.PairingSession
 import no.enaasen.tvremote.data.protocol.RemoteSession
 import no.enaasen.tvremote.data.receiver.DenonReceiver
+import no.enaasen.tvremote.data.receiver.ProbeResult
 import no.enaasen.tvremote.data.security.ClientIdentity
 import no.enaasen.tvremote.di.ApplicationScope
 import no.enaasen.tvremote.proto.remote.RemoteDirection
@@ -341,7 +342,7 @@ class TvRepository @Inject constructor(
 
     fun discoverReceivers(): Flow<List<DiscoveredReceiver>> = discovery.discoverReceivers()
 
-    suspend fun probeReceiver(host: String): Boolean = receiver.probe(host)
+    suspend fun probeReceiver(host: String): ProbeResult = receiver.probe(host)
 
     fun newPairingSession(host: String): PairingSession = PairingSession(identity, host)
 

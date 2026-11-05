@@ -51,4 +51,44 @@ class DenonProtocolTest {
         assertEquals(0, DenonProtocol.stepVolume(1, step = 2, up = false, max = 196))
         assertEquals(0, DenonProtocol.stepVolume(0, step = 2, up = false, max = 196))
     }
+
+    private fun status(volume: String, display: String = "Relative", mute: String = "off") =
+        "<item><VolumeDisplay><value>$display</value></VolumeDisplay>" +
+            "<MasterVolume><value>$volume</value></MasterVolume><Mute><value>$mute</value></Mute></item>"
+
+    @Test
+    fun parsesRelativeHttpVolume() {
+        assertEquals(80, DenonProtocol.parseHttpVolume(status("-40.0")))
+        assertEquals(75, DenonProtocol.parseHttpVolume(status("-42.5")))
+        assertEquals(160, DenonProtocol.parseHttpVolume(status("0.0")))
+    }
+
+    @Test
+    fun parsesAbsoluteHttpVolume() {
+        assertEquals(76, DenonProtocol.parseHttpVolume(status("38.0", display = "Absolute")))
+    }
+
+    @Test
+    fun parsesMinimumHttpVolumeAsZero() {
+        assertEquals(0, DenonProtocol.parseHttpVolume(status("--")))
+        assertEquals(0, DenonProtocol.parseHttpVolume(status("---.-")))
+    }
+
+    @Test
+    fun rejectsHttpStatusWithoutVolume() {
+        assertNull(DenonProtocol.parseHttpVolume("<item></item>"))
+        assertNull(DenonProtocol.parseHttpVolume(status("loud")))
+    }
+
+    @Test
+    fun parsesHttpMute() {
+        assertEquals(false, DenonProtocol.parseHttpMute(status("-40.0", mute = "off")))
+        assertEquals(true, DenonProtocol.parseHttpMute(status("-40.0", mute = "on")))
+        assertNull(DenonProtocol.parseHttpMute("<item></item>"))
+    }
+
+    @Test
+    fun buildsHttpCommandPaths() {
+        assertEquals("/goform/formiPhoneAppDirect.xml?MV38", DenonProtocol.httpCommandPath("MV38"))
+    }
 }

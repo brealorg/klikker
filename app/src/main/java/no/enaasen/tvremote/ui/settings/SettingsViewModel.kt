@@ -15,9 +15,10 @@ import no.enaasen.tvremote.data.TvRepository
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
+import no.enaasen.tvremote.data.receiver.ProbeResult
 
 /** Progress of checking a receiver address before it is saved. */
-enum class ReceiverCheck { Idle, Checking, NotFound, Saved }
+enum class ReceiverCheck { Idle, Checking, NotFound, Refused, Unreachable, Saved }
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -58,8 +59,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             if (trimmed.isNotEmpty()) {
                 _receiverCheck.value = ReceiverCheck.Checking
-                if (!repository.probeReceiver(trimmed)) {
-                    _receiverCheck.value = ReceiverCheck.NotFound
+                val failure = when (repository.probeReceiver(trimmed)) {
+                    ProbeResult.Found -> null
+                    ProbeResult.Refused -> ReceiverCheck.Refused
+                    ProbeResult.Unreachable -> ReceiverCheck.Unreachable
+                    ProbeResult.NoReply -> ReceiverCheck.NotFound
+                }
+                if (failure != null) {
+                    _receiverCheck.value = failure
                     return@launch
                 }
             }
