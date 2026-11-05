@@ -88,6 +88,7 @@ fun SettingsRoute(
         onVolumeKeysChange = viewModel::setVolumeKeysControlTv,
         onKeepConnectedChange = viewModel::setKeepConnectedInBackground,
         onShowAppNamesChange = viewModel::setShowAppNames,
+        onCheckForUpdatesChange = viewModel::setCheckForUpdates,
         onReceiverHostChange = viewModel::saveReceiverHost,
         onReceiverCheckReset = viewModel::resetReceiverCheck,
         onReceiverVolumeStepChange = viewModel::setReceiverVolumeStep,
@@ -113,6 +114,7 @@ internal fun SettingsScreen(
     onVolumeKeysChange: (Boolean) -> Unit,
     onKeepConnectedChange: (Boolean) -> Unit,
     onShowAppNamesChange: (Boolean) -> Unit,
+    onCheckForUpdatesChange: (Boolean) -> Unit,
     onReceiverHostChange: (String) -> Unit,
     onReceiverCheckReset: () -> Unit,
     onReceiverVolumeStepChange: (Int) -> Unit,
@@ -203,6 +205,15 @@ internal fun SettingsScreen(
                         checked = settings.showAppNames,
                         shapes = shapes,
                         onCheckedChange = onShowAppNamesChange,
+                    )
+                },
+                { shapes ->
+                    SwitchSetting(
+                        title = stringResource(R.string.settings_check_updates),
+                        description = stringResource(R.string.settings_check_updates_description),
+                        checked = settings.checkForUpdates,
+                        shapes = shapes,
+                        onCheckedChange = onCheckForUpdatesChange,
                     )
                 },
             )

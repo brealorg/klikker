@@ -19,6 +19,8 @@ import no.enaasen.tvremote.data.model.Scene
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
+import no.enaasen.tvremote.data.update.UpdateManager
+import no.enaasen.tvremote.data.update.UpdateState
 import no.enaasen.tvremote.proto.remote.RemoteDirection
 
 data class RemoteUiState(
@@ -29,12 +31,18 @@ data class RemoteUiState(
     val receiver: ReceiverStatus = ReceiverStatus(),
     val nowPlaying: List<MediaSessionInfo> = emptyList(),
     val scenes: List<Scene> = emptyList(),
+    val update: UpdateState = UpdateState.None,
 )
 
 @HiltViewModel
 class RemoteViewModel @Inject constructor(
     private val repository: TvRepository,
+    private val updates: UpdateManager,
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch { if (repository.updateCheckEnabled()) updates.check() }
+    }
 
     val uiState: StateFlow<RemoteUiState> = combine(
         combine(
@@ -47,7 +55,12 @@ class RemoteViewModel @Inject constructor(
         ),
         repository.nowPlaying,
         repository.scenes,
-    ) { state, nowPlaying, scenes -> state.copy(nowPlaying = nowPlaying, scenes = scenes) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
+        updates.state,
+    ) { state, nowPlaying, scenes, update -> state.copy(nowPlaying = nowPlaying, scenes = scenes, update = update) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
+
+    fun update() = updates.update()
+
+    fun dismissUpdate() = updates.dismiss()
 
     fun sendKey(keyCode: Int) = repository.sendKey(keyCode)
 

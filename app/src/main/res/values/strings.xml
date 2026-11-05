@@ -164,6 +164,15 @@
     <string name="pin_shortcut">Pin %1$s</string>
     <string name="settings_show_app_names">Show app names</string>
     <string name="settings_show_app_names_description">Names under the app icons in the app list</string>
+    <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_check_updates_description">Asks GitHub now and then whether a newer version of Klikker is out</string>
+    <string name="update_available">Klikker %1$s is available</string>
+    <string name="update_action">Update</string>
+    <string name="update_downloading">Downloading %1$s…</string>
+    <string name="update_installing">Installing %1$s…</string>
+    <string name="update_failed">The update didn\u2019t work</string>
+    <string name="update_retry">Try again</string>
+    <string name="update_dismiss">Not now</string>
     <string name="type_on_tv">Type on the TV</string>
     <string name="hide_keyboard">Hide keyboard</string>
     <string name="now_open">Open on the TV</string>

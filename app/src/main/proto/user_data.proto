@@ -65,6 +65,8 @@ message SavedSettings {
   int32 volume_haptics = 10;
   // Highest receiver volume the phone will set, in half-dB steps; 0 means unset and maps to the default.
   int32 receiver_max_half_steps = 11;
+  // Inverted so the default (false) checks GitHub for a newer version of the app.
+  bool update_check_disabled = 12;
 }
 
 message UserData {

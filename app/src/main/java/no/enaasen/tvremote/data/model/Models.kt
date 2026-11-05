@@ -64,6 +64,8 @@ data class RemoteSettings(
     val volumeHaptics: Int = VOLUME_HAPTICS_FULL,
     /** Highest volume the phone sets on the receiver, in half-dB steps (0 on the receiver's scale is -80 dB). */
     val receiverMaxHalfSteps: Int = DEFAULT_RECEIVER_MAX_HALF_STEPS,
+    /** Whether the app asks GitHub if a newer version is out. */
+    val checkForUpdates: Boolean = true,
 ) {
     companion object {
         const val MIN_SWIPE_SENSITIVITY = 1

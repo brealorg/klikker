@@ -101,6 +101,8 @@ fun RemoteRoute(
             onTogglePower = viewModel::togglePower,
             onSeek = viewModel::seek,
             onSubmitText = viewModel::submitText,
+            onUpdate = viewModel::update,
+            onDismissUpdate = viewModel::dismissUpdate,
         ),
     )
 }
@@ -127,6 +129,8 @@ class RemoteActions(
     val onTogglePower: () -> Unit,
     val onSeek: (packageName: String, positionMs: Long) -> Unit,
     val onSubmitText: () -> Unit,
+    val onUpdate: () -> Unit,
+    val onDismissUpdate: () -> Unit,
 )
 
 @Composable
@@ -251,6 +255,7 @@ private fun RemoteControlScreen(tv: Tv, uiState: RemoteUiState, actions: RemoteA
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            UpdateBanner(uiState.update, onUpdate = actions.onUpdate, onDismiss = actions.onDismissUpdate)
             ConnectionMessage(
                 connection = connection,
                 onRetry = actions.onRetry,

@@ -140,6 +140,15 @@
     <string name="pin_shortcut">Fest %1$s</string>
     <string name="settings_show_app_names">Vis appnavn</string>
     <string name="settings_show_app_names_description">Navn under app-ikonene i applisten</string>
+    <string name="settings_check_updates">Se etter oppdateringer</string>
+    <string name="settings_check_updates_description">Spør GitHub av og til om det finnes en nyere versjon av Klikker</string>
+    <string name="update_available">Klikker %1$s er tilgjengelig</string>
+    <string name="update_action">Oppdater</string>
+    <string name="update_downloading">Laster ned %1$s…</string>
+    <string name="update_installing">Installerer %1$s…</string>
+    <string name="update_failed">Oppdateringen gikk ikke</string>
+    <string name="update_retry">Prøv igjen</string>
+    <string name="update_dismiss">Ikke nå</string>
     <string name="type_on_tv">Skriv på TV-en</string>
     <string name="hide_keyboard">Skjul tastaturet</string>
     <string name="scenes">Scener</string>

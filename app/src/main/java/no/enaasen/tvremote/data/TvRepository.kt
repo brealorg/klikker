@@ -122,6 +122,9 @@ class TvRepository @Inject constructor(
         .map { it.settings.toModel() }
         .stateIn(scope, SharingStarted.Eagerly, RemoteSettings())
 
+    /** Read from storage, as [settings] starts out with defaults until the stored values are loaded. */
+    suspend fun updateCheckEnabled(): Boolean = !dataStore.data.first().settings.updateCheckDisabled
+
     /** True when the TV should stay connected in the background (setting on and a TV saved). */
     val backgroundConnectionWanted: Flow<Boolean> = dataStore.data
         .map { it.tvsCount > 0 && !it.settings.backgroundConnectionDisabled }
@@ -396,6 +399,7 @@ class TvRepository @Inject constructor(
                     appNamesHidden = !updated.showAppNames
                     volumeHaptics = updated.volumeHaptics
                     receiverMaxHalfSteps = updated.receiverMaxHalfSteps
+                    updateCheckDisabled = !updated.checkForUpdates
                 }
             }
         }
@@ -660,4 +664,5 @@ private fun SavedSettings.toModel() = RemoteSettings(
     receiverMaxHalfSteps = receiverMaxHalfSteps
         .takeIf { it in RemoteSettings.MIN_RECEIVER_MAX_HALF_STEPS..RemoteSettings.NO_RECEIVER_MAX_HALF_STEPS }
         ?: RemoteSettings.DEFAULT_RECEIVER_MAX_HALF_STEPS,
+    checkForUpdates = !updateCheckDisabled,
 )

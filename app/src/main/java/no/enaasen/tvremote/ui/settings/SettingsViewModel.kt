@@ -53,6 +53,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setShowAppNames(enabled: Boolean) = update { it.copy(showAppNames = enabled) }
 
+    fun setCheckForUpdates(enabled: Boolean) = update { it.copy(checkForUpdates = enabled) }
+
     /** Saves [host] if a receiver answers there; a blank host removes the receiver. */
     fun saveReceiverHost(host: String) {
         val trimmed = host.trim()
