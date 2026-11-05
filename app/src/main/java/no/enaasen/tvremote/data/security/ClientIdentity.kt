@@ -10,6 +10,7 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
+import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.security.spec.RSAKeyGenParameterSpec
 import javax.inject.Inject
@@ -26,15 +27,16 @@ import javax.security.auth.x500.X500Principal
  * Android Keystore.
  *
  * A TV tells phones apart by the certificate's name and serial number, not its
- * key, so two installs with the same ones replace each other's pairing. The
- * debug build, which runs next to the release app, therefore has its own.
- * Never change the release values: every TV would forget the phone.
+ * key, so two installs with the same ones replace each other's pairing. Each
+ * install therefore creates its own random name and serial when it first needs
+ * a certificate, and keeps them with the key. Never change the alias: the phone
+ * would get a new identity and every TV would forget it.
  */
 @Singleton
 class ClientIdentity @Inject constructor(@ApplicationContext context: Context) {
 
     private val isDevBuild = context.packageName.endsWith(".dev")
-    private val alias = if (isDevBuild) "tv_remote_client_dev" else "tv_remote_client"
+    private val alias = if (isDevBuild) "tv_remote_client_dev_2" else "tv_remote_client_2"
 
     private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -60,6 +62,11 @@ class ClientIdentity @Inject constructor(@ApplicationContext context: Context) {
     @Synchronized
     private fun ensureKeyPair() {
         if (keyStore.containsAlias(alias)) return
+        // Older versions shared one fixed name and serial between all installs.
+        LEGACY_ALIASES.forEach { if (keyStore.containsAlias(it)) keyStore.deleteEntry(it) }
+        val random = SecureRandom()
+        val suffix = ByteArray(4).also(random::nextBytes).joinToString("") { "%02x".format(it) }
+        val serial = BigInteger(62, random).add(BigInteger.TWO)
         // Conscrypt signs TLS handshakes with keystore keys either through
         // Signature (PKCS#1 / PSS) or a raw RSA private-key operation, so the
         // key allows both.
@@ -80,8 +87,8 @@ class ClientIdentity @Inject constructor(@ApplicationContext context: Context) {
             )
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(false)
-            .setCertificateSubject(X500Principal(if (isDevBuild) "CN=TV Remote Dev" else "CN=TV Remote"))
-            .setCertificateSerialNumber(if (isDevBuild) BigInteger.TWO else BigInteger.ONE)
+            .setCertificateSubject(X500Principal(if (isDevBuild) "CN=TV Remote Dev $suffix" else "CN=TV Remote $suffix"))
+            .setCertificateSerialNumber(serial)
             .build()
         KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, ANDROID_KEYSTORE).run {
             initialize(spec)
@@ -105,5 +112,6 @@ class ClientIdentity @Inject constructor(@ApplicationContext context: Context) {
 
     private companion object {
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        val LEGACY_ALIASES = listOf("tv_remote_client", "tv_remote_client_dev")
     }
 }
