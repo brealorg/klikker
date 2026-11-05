@@ -1,7 +1,9 @@
 package no.enaasen.tvremote.data.security
 
+import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.math.BigInteger
 import java.net.Socket
 import java.security.KeyPairGenerator
@@ -22,9 +24,17 @@ import javax.security.auth.x500.X500Principal
  * The client certificate this app presents to TVs. The TV remembers it at
  * pairing time, so it must stay stable. The private key never leaves the
  * Android Keystore.
+ *
+ * A TV tells phones apart by the certificate's name and serial number, not its
+ * key, so two installs with the same ones replace each other's pairing. The
+ * debug build, which runs next to the release app, therefore has its own.
+ * Never change the release values: every TV would forget the phone.
  */
 @Singleton
-class ClientIdentity @Inject constructor() {
+class ClientIdentity @Inject constructor(@ApplicationContext context: Context) {
+
+    private val isDevBuild = context.packageName.endsWith(".dev")
+    private val alias = if (isDevBuild) "tv_remote_client_dev" else "tv_remote_client"
 
     private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -33,28 +43,28 @@ class ClientIdentity @Inject constructor() {
     val certificate: X509Certificate
         get() {
             ensureKeyPair()
-            return keyStore.getCertificate(ALIAS) as X509Certificate
+            return keyStore.getCertificate(alias) as X509Certificate
         }
 
     private val privateKey: PrivateKey
         get() {
             ensureKeyPair()
-            return keyStore.getKey(ALIAS, null) as PrivateKey
+            return keyStore.getKey(alias, null) as PrivateKey
         }
 
     fun sslContext(trustManager: X509TrustManager): SSLContext =
         SSLContext.getInstance("TLS").apply {
-            init(arrayOf(SingleKeyManager(certificate, privateKey)), arrayOf(trustManager), null)
+            init(arrayOf(SingleKeyManager(alias, certificate, privateKey)), arrayOf(trustManager), null)
         }
 
     @Synchronized
     private fun ensureKeyPair() {
-        if (keyStore.containsAlias(ALIAS)) return
+        if (keyStore.containsAlias(alias)) return
         // Conscrypt signs TLS handshakes with keystore keys either through
         // Signature (PKCS#1 / PSS) or a raw RSA private-key operation, so the
         // key allows both.
         val spec = KeyGenParameterSpec.Builder(
-            ALIAS,
+            alias,
             KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_DECRYPT,
         )
             .setAlgorithmParameterSpec(RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
@@ -70,8 +80,8 @@ class ClientIdentity @Inject constructor() {
             )
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(false)
-            .setCertificateSubject(X500Principal("CN=TV Remote"))
-            .setCertificateSerialNumber(BigInteger.ONE)
+            .setCertificateSubject(X500Principal(if (isDevBuild) "CN=TV Remote Dev" else "CN=TV Remote"))
+            .setCertificateSerialNumber(if (isDevBuild) BigInteger.TWO else BigInteger.ONE)
             .build()
         KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, ANDROID_KEYSTORE).run {
             initialize(spec)
@@ -80,12 +90,13 @@ class ClientIdentity @Inject constructor() {
     }
 
     private class SingleKeyManager(
+        private val alias: String,
         private val certificate: X509Certificate,
         private val privateKey: PrivateKey,
     ) : X509ExtendedKeyManager() {
-        override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?) = arrayOf(ALIAS)
-        override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?) = ALIAS
-        override fun chooseEngineClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?) = ALIAS
+        override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?) = arrayOf(alias)
+        override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?) = alias
+        override fun chooseEngineClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?) = alias
         override fun getServerAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
         override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?): String? = null
         override fun getCertificateChain(alias: String?) = arrayOf(certificate)
@@ -94,6 +105,5 @@ class ClientIdentity @Inject constructor() {
 
     private companion object {
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        const val ALIAS = "tv_remote_client"
     }
 }
