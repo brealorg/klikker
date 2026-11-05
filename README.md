@@ -9,12 +9,27 @@ Android TV Remote Protocol v2, and can control a Denon/Marantz receiver's volume
 
 - **Volume ring**: turn the knob to change volume, with adjustable haptics and a maximum receiver volume.
 - **Denon/Marantz receivers**: found on the network and controlled directly over the network.
+  The receiver only allows one control connection, so Klikker lets go of it when idle and falls
+  back to the receiver's web interface while another app holds it.
 - **Now playing**: poster or cover art, title and a seek bar for what is playing on the TV.
 - **Apps**: shortcuts shown as app icons, learned from each TV, opened through their own links.
 - **Typing**: use the phone's keyboard in TV text fields, with edits made on the TV followed back.
 - **Scenes**: save how the TV is set up and run it with one tap.
 - **Quick settings tiles**: TV power and mute.
 - **Wake**: wakes a sleeping SHIELD with the NVIDIA button when Power is swallowed.
+- **Updates**: tells you when a newer release is out and installs it from inside the app.
+
+## Updates and network use
+
+Klikker otherwise talks only to devices on your own network. The one exception is the update
+check: when the remote opens (at most once an hour) it asks `api.github.com` for the latest
+release of this repository, and shows a banner if it is newer than the installed version. Tapping
+**Update** downloads the APK from GitHub, checks it against the checksum GitHub lists for it and
+hands it to Android's installer, which asks you to confirm and only accepts an update signed with
+the same key as the installed app. Nothing else is sent, and debug builds never check.
+
+Turn it off under Settings → Check for updates. Android may ask you to allow Klikker to install
+apps the first time you update.
 
 ## Companion
 
