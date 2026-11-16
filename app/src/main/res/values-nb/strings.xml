@@ -146,6 +146,12 @@
     <string name="settings_show_app_names_description">Navn under app-ikonene i applisten</string>
     <string name="settings_check_updates">Se etter oppdateringer</string>
     <string name="settings_check_updates_description">Spør GitHub av og til om det finnes en nyere versjon av Klikker</string>
+    <string name="settings_update_now">Se etter oppdateringer nå</string>
+    <string name="settings_update_now_description">Sjekker med en gang, selv om du valgte Ikke nå eller nettopp har sjekket</string>
+    <string name="settings_update_now_checking">Sjekker…</string>
+    <string name="settings_update_now_up_to_date">Du har nyeste versjon</string>
+    <string name="settings_update_now_failed">Fikk ikke kontakt med GitHub</string>
+    <string name="settings_update_now_available">Klikker %1$s er tilgjengelig. Trykk for å laste ned og installere</string>
     <string name="update_available">Klikker %1$s er tilgjengelig</string>
     <string name="update_action">Oppdater</string>
     <string name="update_downloading">Laster ned %1$s…</string>

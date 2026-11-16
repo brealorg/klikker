@@ -16,6 +16,9 @@ import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.receiver.ProbeResult
+import no.enaasen.tvremote.data.update.ManualCheck
+import no.enaasen.tvremote.data.update.UpdateManager
+import no.enaasen.tvremote.data.update.UpdateState
 
 /** Progress of checking a receiver address before it is saved. */
 enum class ReceiverCheck { Idle, Checking, NotFound, Refused, Unreachable, Saved }
@@ -23,6 +26,7 @@ enum class ReceiverCheck { Idle, Checking, NotFound, Refused, Unreachable, Saved
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: TvRepository,
+    private val updates: UpdateManager,
 ) : ViewModel() {
 
     val settings: StateFlow<RemoteSettings> = repository.settings
@@ -36,6 +40,17 @@ class SettingsViewModel @Inject constructor(
 
     private val _receiverCheck = MutableStateFlow(ReceiverCheck.Idle)
     val receiverCheck: StateFlow<ReceiverCheck> = _receiverCheck.asStateFlow()
+
+    val updateState: StateFlow<UpdateState> = updates.state
+    val manualCheck: StateFlow<ManualCheck> = updates.manualCheck
+
+    fun checkForUpdatesNow() {
+        viewModelScope.launch { updates.checkNow() }
+    }
+
+    fun installUpdate() = updates.update()
+
+    fun resetManualCheck() = updates.resetManualCheck()
 
     fun setSwipeSensitivity(sensitivity: Int) = update { it.copy(swipeSensitivity = sensitivity) }
 

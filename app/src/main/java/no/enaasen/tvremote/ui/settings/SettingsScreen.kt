@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,8 @@ import kotlin.math.roundToInt
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.model.DiscoveredReceiver
 import no.enaasen.tvremote.data.model.RemoteSettings
+import no.enaasen.tvremote.data.update.ManualCheck
+import no.enaasen.tvremote.data.update.UpdateState
 
 @Composable
 fun SettingsRoute(
@@ -73,10 +76,17 @@ fun SettingsRoute(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val receiverStatus by viewModel.receiverStatus.collectAsStateWithLifecycle()
     val receiverCheck by viewModel.receiverCheck.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val manualCheck by viewModel.manualCheck.collectAsStateWithLifecycle()
+    DisposableEffect(Unit) { onDispose { viewModel.resetManualCheck() } }
     SettingsScreen(
         settings = settings,
         receiverConnected = receiverStatus.isConnected,
         receiverCheck = receiverCheck,
+        updateState = updateState,
+        manualCheck = manualCheck,
+        onCheckForUpdatesNow = viewModel::checkForUpdatesNow,
+        onInstallUpdate = viewModel::installUpdate,
         discoveredReceivers = { viewModel.discoveredReceivers.collectAsStateWithLifecycle().value },
         onBack = onBack,
         onOpenDiagnostics = onOpenDiagnostics,
@@ -102,6 +112,10 @@ internal fun SettingsScreen(
     settings: RemoteSettings,
     receiverConnected: Boolean,
     receiverCheck: ReceiverCheck,
+    updateState: UpdateState,
+    manualCheck: ManualCheck,
+    onCheckForUpdatesNow: () -> Unit,
+    onInstallUpdate: () -> Unit,
     /** Read only while the receiver dialog is shown, so the network is searched only then. */
     discoveredReceivers: @Composable () -> List<DiscoveredReceiver>?,
     onBack: () -> Unit,
@@ -214,6 +228,15 @@ internal fun SettingsScreen(
                         checked = settings.checkForUpdates,
                         shapes = shapes,
                         onCheckedChange = onCheckForUpdatesChange,
+                    )
+                },
+                { shapes ->
+                    UpdateNowSetting(
+                        updateState = updateState,
+                        manualCheck = manualCheck,
+                        shapes = shapes,
+                        onCheck = onCheckForUpdatesNow,
+                        onInstall = onInstallUpdate,
                     )
                 },
             )
@@ -589,6 +612,37 @@ private fun ReceiverVolumeStepSetting(step: Int, enabled: Boolean, shapes: ListI
             }
         },
     ) { Text(stringResource(R.string.settings_receiver_volume_step)) }
+}
+
+@Composable
+private fun UpdateNowSetting(
+    updateState: UpdateState,
+    manualCheck: ManualCheck,
+    shapes: ListItemShapes,
+    onCheck: () -> Unit,
+    onInstall: () -> Unit,
+) {
+    val available = (updateState as? UpdateState.Available)?.release ?: (updateState as? UpdateState.Failed)?.release
+    val busy = manualCheck == ManualCheck.Checking || updateState is UpdateState.Downloading || updateState is UpdateState.Installing
+    SegmentedListItem(
+        onClick = if (available != null) onInstall else onCheck,
+        enabled = !busy,
+        shapes = shapes,
+        colors = settingsItemColors(),
+        supportingContent = {
+            Text(
+                when {
+                    updateState is UpdateState.Downloading -> stringResource(R.string.update_downloading, updateState.release.version)
+                    updateState is UpdateState.Installing -> stringResource(R.string.update_installing, updateState.release.version)
+                    available != null -> stringResource(R.string.settings_update_now_available, available.version)
+                    manualCheck == ManualCheck.Checking -> stringResource(R.string.settings_update_now_checking)
+                    manualCheck == ManualCheck.UpToDate -> stringResource(R.string.settings_update_now_up_to_date)
+                    manualCheck == ManualCheck.Failed -> stringResource(R.string.settings_update_now_failed)
+                    else -> stringResource(R.string.settings_update_now_description)
+                },
+            )
+        },
+    ) { Text(stringResource(if (available != null) R.string.update_action else R.string.settings_update_now)) }
 }
 
 @Composable

@@ -45,6 +45,9 @@ sealed interface UpdateState {
     data class Failed(val release: ReleaseInfo) : UpdateState
 }
 
+/** Outcome of the user asking for a check from the settings, as opposed to the automatic one. */
+enum class ManualCheck { Idle, Checking, UpToDate, Failed }
+
 /**
  * Tells the user when a newer release is out on GitHub, and installs it from
  * there on request, so nobody has to go to GitHub to update. Android's installer
@@ -68,6 +71,9 @@ class UpdateManager @Inject constructor(
     // Debug builds are a separate app, and installing the release over them isn't an update.
     private val isDebuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
+    private val _manualCheck = MutableStateFlow(ManualCheck.Idle)
+    val manualCheck: StateFlow<ManualCheck> = _manualCheck.asStateFlow()
+
     @Volatile
     private var lastCheckAt = 0L
 
@@ -88,6 +94,40 @@ class UpdateManager @Inject constructor(
         if (release.version == prefs.getString(DISMISSED_VERSION, null)) return
         log.info(DiagnosticCategory.App, "Version ${release.version} is available (running $current)")
         _state.value = UpdateState.Available(release)
+    }
+
+    /**
+     * Looks now, whatever the hourly limit and an earlier "Not now" say. A newer release
+     * is offered like any other; otherwise [manualCheck] says why nothing is.
+     */
+    suspend fun checkNow() {
+        val current = currentVersion
+        if (_manualCheck.value == ManualCheck.Checking || _state.value is UpdateState.Downloading || _state.value is UpdateState.Installing) return
+        if (current == null || isDebuggable) {
+            _manualCheck.value = ManualCheck.UpToDate
+            return
+        }
+        _manualCheck.value = ManualCheck.Checking
+        val release = try {
+            fetchLatest()
+        } catch (e: IOException) {
+            log.warning(DiagnosticCategory.App, "Could not check for a newer version", e)
+            _manualCheck.value = ManualCheck.Failed
+            return
+        }
+        lastCheckAt = System.currentTimeMillis()
+        if (release != null && isNewerVersion(release.version, current)) {
+            log.info(DiagnosticCategory.App, "Version ${release.version} is available (running $current)")
+            prefs.edit().remove(DISMISSED_VERSION).apply()
+            _state.value = UpdateState.Available(release)
+            _manualCheck.value = ManualCheck.Idle
+        } else {
+            _manualCheck.value = ManualCheck.UpToDate
+        }
+    }
+
+    fun resetManualCheck() {
+        if (_manualCheck.value != ManualCheck.Checking) _manualCheck.value = ManualCheck.Idle
     }
 
     /** Hides the offer for this version; the next release is offered again. */

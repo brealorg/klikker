@@ -170,6 +170,12 @@
     <string name="settings_show_app_names_description">Names under the app icons in the app list</string>
     <string name="settings_check_updates">Check for updates</string>
     <string name="settings_check_updates_description">Asks GitHub now and then whether a newer version of Klikker is out</string>
+    <string name="settings_update_now">Check for updates now</string>
+    <string name="settings_update_now_description">Looks right away, even if you chose Not now or checked recently</string>
+    <string name="settings_update_now_checking">Checking…</string>
+    <string name="settings_update_now_up_to_date">You have the latest version</string>
+    <string name="settings_update_now_failed">Couldn\u2019t reach GitHub</string>
+    <string name="settings_update_now_available">Klikker %1$s is available. Tap to download and install it</string>
     <string name="update_available">Klikker %1$s is available</string>
     <string name="update_action">Update</string>
     <string name="update_downloading">Downloading %1$s…</string>
