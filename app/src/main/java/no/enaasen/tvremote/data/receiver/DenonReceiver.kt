@@ -164,6 +164,8 @@ class DenonReceiver @Inject constructor(
             stopRepeat()
             maintainedHost = null
             telnetBusy = false
+            // Also drops the volume an idle release kept, so a TV without the receiver doesn't show it.
+            _status.value = ReceiverStatus()
         }
     }
 

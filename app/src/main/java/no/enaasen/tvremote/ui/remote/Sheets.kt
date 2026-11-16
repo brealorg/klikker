@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -117,6 +119,8 @@ internal fun TvSheet(
     selectedStatus: String,
     onSelect: (Tv) -> Unit,
     onRemove: (Tv) -> Unit,
+    onSetUsesReceiver: (Tv, Boolean) -> Unit,
+    showReceiverOption: Boolean,
     onAddTv: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -146,6 +150,22 @@ internal fun TvSheet(
                         },
                     ) { Text(tv.name) }
                 }
+            }
+            if (showReceiverOption) {
+                Text(
+                    stringResource(R.string.tv_receiver_title, selected.name),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.tv_uses_receiver)) },
+                    supportingContent = {
+                        Text(stringResource(if (selected.usesReceiver) R.string.tv_uses_receiver_on else R.string.tv_uses_receiver_off))
+                    },
+                    trailingContent = {
+                        Switch(checked = selected.usesReceiver, onCheckedChange = { onSetUsesReceiver(selected, it) })
+                    },
+                )
             }
             FilledTonalButton(
                 onClick = onAddTv,

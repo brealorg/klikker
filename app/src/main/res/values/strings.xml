@@ -51,6 +51,10 @@
     <string name="your_tvs">Your TVs</string>
     <string name="add_tv">Add TV</string>
     <string name="remove_tv_title">Remove %1$s?</string>
+    <string name="tv_receiver_title">Sound on %1$s</string>
+    <string name="tv_uses_receiver">Connected to the receiver</string>
+    <string name="tv_uses_receiver_on">Volume goes to the receiver</string>
+    <string name="tv_uses_receiver_off">Volume goes to the TV itself</string>
     <string name="remove_tv_message">You will need to pair again to use it.</string>
     <string name="no_tv_title">No TV added</string>
     <string name="no_tv_message">Add a Google TV or Android TV device on your network to get started.</string>

@@ -92,6 +92,10 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch { repository.selectTv(tv.id) }
     }
 
+    fun setTvUsesReceiver(tv: Tv, usesReceiver: Boolean) {
+        viewModelScope.launch { repository.setTvUsesReceiver(tv.id, usesReceiver) }
+    }
+
     fun removeTv(tv: Tv) {
         viewModelScope.launch { repository.removeTv(tv.id) }
     }

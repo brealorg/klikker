@@ -36,6 +36,10 @@
     <string name="your_tvs">Dine TV-er</string>
     <string name="add_tv">Legg til TV</string>
     <string name="remove_tv_title">Fjerne %1$s?</string>
+    <string name="tv_receiver_title">Lyd på %1$s</string>
+    <string name="tv_uses_receiver">Koblet til mottakeren</string>
+    <string name="tv_uses_receiver_on">Volumet styrer mottakeren</string>
+    <string name="tv_uses_receiver_off">Volumet styrer TV-en selv</string>
     <string name="remove_tv_message">Du må pare på nytt for å bruke den.</string>
     <string name="no_tv_title">Ingen TV lagt til</string>
     <string name="no_tv_message">Legg til en Google TV- eller Android TV-enhet på nettverket ditt for å komme i gang.</string>

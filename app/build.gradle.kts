@@ -17,8 +17,8 @@ android {
         applicationId = "no.enaasen.tvremote"
         minSdk = 29
         targetSdk = 37
-        versionCode = 6
-        versionName = "1.0.4"
+        versionCode = 7
+        versionName = "1.0.5"
     }
 
     val signingProps = Properties().apply {

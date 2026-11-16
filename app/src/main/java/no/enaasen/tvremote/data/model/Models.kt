@@ -7,6 +7,8 @@ data class Tv(
     val name: String,
     val host: String,
     val port: Int,
+    /** Whether the configured receiver is connected to this TV, so volume goes to it while this TV is selected. */
+    val usesReceiver: Boolean = true,
 )
 
 enum class MediaState { Playing, Paused, Buffering, Stopped }

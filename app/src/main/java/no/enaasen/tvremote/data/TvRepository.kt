@@ -258,8 +258,10 @@ class TvRepository @Inject constructor(
 
         scope.launch {
             val receiverHost = settings.map { it.receiverHost }.distinctUntilChanged()
-            combine(keepConnected, backgroundServiceRunning, receiverHost) { foreground, service, host ->
-                host.takeIf { (foreground || service) && it.isNotBlank() }
+            // A TV that isn't wired to the receiver must not have its volume keys sent there.
+            val selectedUsesReceiver = dataStore.data.map { data -> data.selectedTv()?.receiverDisabled != true }.distinctUntilChanged()
+            combine(keepConnected, backgroundServiceRunning, receiverHost, selectedUsesReceiver) { foreground, service, host, usesReceiver ->
+                host.takeIf { (foreground || service) && usesReceiver && it.isNotBlank() }
             }.distinctUntilChanged().collectLatest { host ->
                 if (host != null) receiver.maintain(host)
             }
@@ -351,6 +353,15 @@ class TvRepository @Inject constructor(
 
     suspend fun selectTv(id: String) {
         dataStore.updateData { it.copy { selectedId = id } }
+    }
+
+    /** Sets whether the receiver is connected to the TV [id]; if not, volume goes to that TV itself. */
+    suspend fun setTvUsesReceiver(id: String, usesReceiver: Boolean) {
+        dataStore.updateData { data ->
+            val index = data.tvsList.indexOfFirst { it.id == id }
+            if (index < 0) return@updateData data
+            data.copy { tvs[index] = data.tvsList[index].copy { receiverDisabled = !usesReceiver } }
+        }
     }
 
     suspend fun removeTv(id: String) {
@@ -622,7 +633,7 @@ class TvRepository @Inject constructor(
     }
 }
 
-private fun SavedTv.toTv() = Tv(id = id, name = name, host = host, port = port)
+private fun SavedTv.toTv() = Tv(id = id, name = name, host = host, port = port, usesReceiver = !receiverDisabled)
 
 private fun UserData.selectedTv(): SavedTv? = tvsList.find { it.id == selectedId } ?: tvsList.firstOrNull()
 
