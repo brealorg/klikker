@@ -63,6 +63,8 @@ import no.enaasen.tvremote.data.protocol.PairingSession
 import no.enaasen.tvremote.data.protocol.RemoteSession
 import no.enaasen.tvremote.data.receiver.DenonReceiver
 import no.enaasen.tvremote.data.receiver.ProbeResult
+import no.enaasen.tvremote.data.samsung.SamsungProbeResult
+import no.enaasen.tvremote.data.samsung.SamsungVolume
 import no.enaasen.tvremote.data.security.ClientIdentity
 import no.enaasen.tvremote.di.ApplicationScope
 import no.enaasen.tvremote.proto.remote.RemoteDirection
@@ -92,6 +94,7 @@ class TvRepository @Inject constructor(
     private val discovery: TvDiscovery,
     private val log: DiagnosticLog,
     private val receiver: DenonReceiver,
+    private val samsungVolume: SamsungVolume,
     @ApplicationContext private val context: Context,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
@@ -233,6 +236,10 @@ class TvRepository @Inject constructor(
     @Volatile
     private var activeSession: RemoteSession? = null
 
+    /** The selected TV's Samsung address for volume; blank when its box gets the volume keys. */
+    @Volatile
+    private var volumeHost = ""
+
     private val reconnectRequests = MutableStateFlow(0)
 
     private val deviceInfo = remoteDeviceInfo {
@@ -256,6 +263,12 @@ class TvRepository @Inject constructor(
             .map { it.selectedTv() }
             .distinctUntilChanged { old, new -> old?.withoutApps() == new?.withoutApps() }
 
+        scope.launch {
+            dataStore.data.map { it.selectedTv()?.volumeHost.orEmpty() }.distinctUntilChanged().collect { host ->
+                volumeHost = host
+                samsungVolume.close()
+            }
+        }
         scope.launch {
             val receiverHost = settings.map { it.receiverHost }.distinctUntilChanged()
             // A TV that isn't wired to the receiver must not have its volume keys sent there.
@@ -281,9 +294,11 @@ class TvRepository @Inject constructor(
 
     fun sendKey(keyCode: Int, direction: RemoteDirection = RemoteDirection.SHORT) {
         val current = settings.value
-        if (receiver.handleKey(keyCode, direction, current.receiverVolumeStep, current.receiverMaxHalfSteps)) return
-        val session = activeSession ?: return
         val isVolumeStep = keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+        if (receiver.handleKey(keyCode, direction, current.receiverVolumeStep, current.receiverMaxHalfSteps)) return
+        val samsungHost = volumeHost
+        if (samsungHost.isNotBlank() && samsungVolume.handleKey(samsungHost, keyCode, direction)) return
+        val session = activeSession ?: return
         if (isVolumeStep && direction == RemoteDirection.SHORT) {
             session.sendVolumeTap(keyCode)
         } else {
@@ -363,6 +378,17 @@ class TvRepository @Inject constructor(
             data.copy { tvs[index] = data.tvsList[index].copy { receiverDisabled = !usesReceiver } }
         }
     }
+
+    /** Sets the Samsung TV address that volume goes to for the TV [id]; blank to send volume to the TV box again. */
+    suspend fun setTvVolumeHost(id: String, host: String) {
+        dataStore.updateData { data ->
+            val index = data.tvsList.indexOfFirst { it.id == id }
+            if (index < 0) return@updateData data
+            data.copy { tvs[index] = data.tvsList[index].copy { volumeHost = host.trim() } }
+        }
+    }
+
+    suspend fun probeSamsungVolume(host: String): SamsungProbeResult = samsungVolume.probe(host)
 
     suspend fun removeTv(id: String) {
         dataStore.updateData { data ->
@@ -633,7 +659,7 @@ class TvRepository @Inject constructor(
     }
 }
 
-private fun SavedTv.toTv() = Tv(id = id, name = name, host = host, port = port, usesReceiver = !receiverDisabled)
+private fun SavedTv.toTv() = Tv(id = id, name = name, host = host, port = port, usesReceiver = !receiverDisabled, volumeHost = volumeHost)
 
 private fun UserData.selectedTv(): SavedTv? = tvsList.find { it.id == selectedId } ?: tvsList.firstOrNull()
 
@@ -649,6 +675,9 @@ private fun SavedTv.withoutApps(): SavedTv = copy {
     shortcuts.clear()
     seenApps.clear()
     clearLastAppPackage()
+    // Where volume goes doesn't change how the TV is reached.
+    clearReceiverDisabled()
+    clearVolumeHost()
 }
 
 private fun SavedScene.toModel() = Scene(

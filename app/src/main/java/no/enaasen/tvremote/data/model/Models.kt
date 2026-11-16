@@ -9,6 +9,8 @@ data class Tv(
     val port: Int,
     /** Whether the configured receiver is connected to this TV, so volume goes to it while this TV is selected. */
     val usesReceiver: Boolean = true,
+    /** Address of a Samsung TV that gets volume and mute directly; blank to send them to the TV box. */
+    val volumeHost: String = "",
 )
 
 enum class MediaState { Playing, Paused, Buffering, Stopped }

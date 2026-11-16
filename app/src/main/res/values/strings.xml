@@ -55,6 +55,16 @@
     <string name="tv_uses_receiver">Connected to the receiver</string>
     <string name="tv_uses_receiver_on">Volume goes to the receiver</string>
     <string name="tv_uses_receiver_off">Volume goes to the TV itself</string>
+    <string name="tv_volume_title">Volume on %1$s</string>
+    <string name="tv_volume_samsung">Samsung TV address</string>
+    <string name="tv_volume_samsung_off">Volume goes to the TV box. Set an address to send it straight to a Samsung TV.</string>
+    <string name="tv_volume_samsung_on">Volume goes straight to the TV at %1$s</string>
+    <string name="tv_volume_samsung_message">For a Samsung TV that ignores the volume keys sent to the box in its HDMI port. Volume and mute then go to the TV over your network. Leave empty to send them to the box again.</string>
+    <string name="tv_volume_samsung_address">IP address</string>
+    <string name="tv_volume_samsung_checking">Checking…</string>
+    <string name="tv_volume_samsung_no_reply">The TV took the connection but didn\u2019t answer. Look for a prompt on the TV and allow it, then try again</string>
+    <string name="tv_volume_samsung_denied">The TV turned this phone down. Check the TV\u2019s device connection manager</string>
+    <string name="tv_volume_samsung_unreachable">No answer from this address. Check the IP and that the phone and TV are on the same network</string>
     <string name="remove_tv_message">You will need to pair again to use it.</string>
     <string name="no_tv_title">No TV added</string>
     <string name="no_tv_message">Add a Google TV or Android TV device on your network to get started.</string>

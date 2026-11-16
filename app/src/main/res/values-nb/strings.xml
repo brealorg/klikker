@@ -40,6 +40,16 @@
     <string name="tv_uses_receiver">Koblet til mottakeren</string>
     <string name="tv_uses_receiver_on">Volumet styrer mottakeren</string>
     <string name="tv_uses_receiver_off">Volumet styrer TV-en selv</string>
+    <string name="tv_volume_title">Volum på %1$s</string>
+    <string name="tv_volume_samsung">Samsung-TV-ens adresse</string>
+    <string name="tv_volume_samsung_off">Volumet går til TV-boksen. Skriv inn en adresse for å sende det rett til en Samsung-TV.</string>
+    <string name="tv_volume_samsung_on">Volumet går rett til TV-en på %1$s</string>
+    <string name="tv_volume_samsung_message">For en Samsung-TV som ignorerer volumtastene som sendes til boksen i HDMI-porten. Volum og mute går da til TV-en over nettverket. La feltet stå tomt for å sende dem til boksen igjen.</string>
+    <string name="tv_volume_samsung_address">IP-adresse</string>
+    <string name="tv_volume_samsung_checking">Sjekker…</string>
+    <string name="tv_volume_samsung_no_reply">TV-en tok imot tilkoblingen, men svarte ikke. Se etter en forespørsel på TV-en og tillat den, og prøv igjen</string>
+    <string name="tv_volume_samsung_denied">TV-en avviste telefonen. Sjekk enhetstilkoblingsbehandling i TV-en</string>
+    <string name="tv_volume_samsung_unreachable">Ingen svar fra adressen. Sjekk IP-en og at telefonen og TV-en er på samme nett</string>
     <string name="remove_tv_message">Du må pare på nytt for å bruke den.</string>
     <string name="no_tv_title">Ingen TV lagt til</string>
     <string name="no_tv_message">Legg til en Google TV- eller Android TV-enhet på nettverket ditt for å komme i gang.</string>

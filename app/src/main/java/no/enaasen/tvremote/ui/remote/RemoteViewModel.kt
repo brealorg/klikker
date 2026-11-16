@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -16,12 +18,16 @@ import no.enaasen.tvremote.data.model.ConnectionState
 import no.enaasen.tvremote.data.model.MediaSessionInfo
 import no.enaasen.tvremote.data.model.ReceiverStatus
 import no.enaasen.tvremote.data.model.Scene
+import no.enaasen.tvremote.data.samsung.SamsungProbeResult
 import no.enaasen.tvremote.data.model.RemoteSettings
 import no.enaasen.tvremote.data.model.Tv
 import no.enaasen.tvremote.data.model.TvApps
 import no.enaasen.tvremote.data.update.UpdateManager
 import no.enaasen.tvremote.data.update.UpdateState
 import no.enaasen.tvremote.proto.remote.RemoteDirection
+
+/** Progress of checking a Samsung TV's address before it is saved. */
+enum class VolumeHostCheck { Idle, Checking, NoReply, Denied, Unreachable, Saved }
 
 data class RemoteUiState(
     val connection: ConnectionState = ConnectionState.Loading,
@@ -32,6 +38,7 @@ data class RemoteUiState(
     val nowPlaying: List<MediaSessionInfo> = emptyList(),
     val scenes: List<Scene> = emptyList(),
     val update: UpdateState = UpdateState.None,
+    val volumeHostCheck: VolumeHostCheck = VolumeHostCheck.Idle,
 )
 
 @HiltViewModel
@@ -43,6 +50,9 @@ class RemoteViewModel @Inject constructor(
     init {
         viewModelScope.launch { if (repository.updateCheckEnabled()) updates.check() }
     }
+
+    private val _volumeHostCheck = MutableStateFlow(VolumeHostCheck.Idle)
+    private val volumeHostCheck = _volumeHostCheck.asStateFlow()
 
     val uiState: StateFlow<RemoteUiState> = combine(
         combine(
@@ -56,7 +66,10 @@ class RemoteViewModel @Inject constructor(
         repository.nowPlaying,
         repository.scenes,
         updates.state,
-    ) { state, nowPlaying, scenes, update -> state.copy(nowPlaying = nowPlaying, scenes = scenes, update = update) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
+        volumeHostCheck,
+    ) { state, nowPlaying, scenes, update, check ->
+        state.copy(nowPlaying = nowPlaying, scenes = scenes, update = update, volumeHostCheck = check)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RemoteUiState())
 
     fun update() = updates.update()
 
@@ -94,6 +107,32 @@ class RemoteViewModel @Inject constructor(
 
     fun setTvUsesReceiver(tv: Tv, usesReceiver: Boolean) {
         viewModelScope.launch { repository.setTvUsesReceiver(tv.id, usesReceiver) }
+    }
+
+    /** Saves [host] as where [tv]'s volume goes if a Samsung TV takes the connection there; blank sends volume to the TV box again. */
+    fun saveVolumeHost(tv: Tv, host: String) {
+        val trimmed = host.trim()
+        viewModelScope.launch {
+            if (trimmed.isNotEmpty()) {
+                _volumeHostCheck.value = VolumeHostCheck.Checking
+                val failure = when (repository.probeSamsungVolume(trimmed)) {
+                    SamsungProbeResult.Found -> null
+                    SamsungProbeResult.Denied -> VolumeHostCheck.Denied
+                    SamsungProbeResult.NoReply -> VolumeHostCheck.NoReply
+                    SamsungProbeResult.Unreachable -> VolumeHostCheck.Unreachable
+                }
+                if (failure != null) {
+                    _volumeHostCheck.value = failure
+                    return@launch
+                }
+            }
+            repository.setTvVolumeHost(tv.id, trimmed)
+            _volumeHostCheck.value = VolumeHostCheck.Saved
+        }
+    }
+
+    fun resetVolumeHostCheck() {
+        _volumeHostCheck.value = VolumeHostCheck.Idle
     }
 
     fun removeTv(tv: Tv) {

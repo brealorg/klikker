@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -121,10 +122,14 @@ internal fun TvSheet(
     onRemove: (Tv) -> Unit,
     onSetUsesReceiver: (Tv, Boolean) -> Unit,
     showReceiverOption: Boolean,
+    volumeHostCheck: VolumeHostCheck,
+    onSaveVolumeHost: (Tv, String) -> Unit,
+    onResetVolumeHostCheck: () -> Unit,
     onAddTv: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var pendingRemoval by remember { mutableStateOf<Tv?>(null) }
+    var editingVolumeHost by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -167,6 +172,24 @@ internal fun TvSheet(
                     },
                 )
             }
+            Text(
+                stringResource(R.string.tv_volume_title, selected.name),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            ListItem(
+                modifier = Modifier.clickable {
+                    onResetVolumeHostCheck()
+                    editingVolumeHost = true
+                },
+                headlineContent = { Text(stringResource(R.string.tv_volume_samsung)) },
+                supportingContent = {
+                    Text(
+                        if (selected.volumeHost.isBlank()) stringResource(R.string.tv_volume_samsung_off)
+                        else stringResource(R.string.tv_volume_samsung_on, selected.volumeHost),
+                    )
+                },
+            )
             FilledTonalButton(
                 onClick = onAddTv,
                 modifier = Modifier
@@ -179,6 +202,18 @@ internal fun TvSheet(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (editingVolumeHost) {
+        VolumeHostDialog(
+            host = selected.volumeHost,
+            check = volumeHostCheck,
+            onSave = { onSaveVolumeHost(selected, it) },
+            onDismiss = { editingVolumeHost = false },
+        )
+    }
+    LaunchedEffect(volumeHostCheck) {
+        if (volumeHostCheck == VolumeHostCheck.Saved) editingVolumeHost = false
     }
 
     pendingRemoval?.let { tv ->
@@ -440,5 +475,45 @@ private fun SheetTitle(text: String) {
         text = text,
         style = MaterialTheme.typography.headlineSmall,
         modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 16.dp),
+    )
+}
+
+/** Where a TV's volume goes when it isn't the box's own: a Samsung TV's address, checked before it is saved. */
+@Composable
+private fun VolumeHostDialog(host: String, check: VolumeHostCheck, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var input by rememberSaveable { mutableStateOf(host) }
+    val checking = check == VolumeHostCheck.Checking
+    AlertDialog(
+        onDismissRequest = { if (!checking) onDismiss() },
+        title = { Text(stringResource(R.string.tv_volume_samsung)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.tv_volume_samsung_message))
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    enabled = !checking,
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.tv_volume_samsung_address)) },
+                    isError = check != VolumeHostCheck.Idle && check != VolumeHostCheck.Checking && check != VolumeHostCheck.Saved,
+                    supportingText = {
+                        val message = when (check) {
+                            VolumeHostCheck.Checking -> R.string.tv_volume_samsung_checking
+                            VolumeHostCheck.NoReply -> R.string.tv_volume_samsung_no_reply
+                            VolumeHostCheck.Denied -> R.string.tv_volume_samsung_denied
+                            VolumeHostCheck.Unreachable -> R.string.tv_volume_samsung_unreachable
+                            else -> null
+                        }
+                        message?.let { Text(stringResource(it)) }
+                    },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(input) }, enabled = !checking) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !checking) { Text(stringResource(R.string.cancel)) }
+        },
     )
 }

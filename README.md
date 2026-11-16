@@ -11,6 +11,8 @@ Android TV Remote Protocol v2, and can control a Denon/Marantz receiver's volume
 - **Denon/Marantz receivers**: found on the network and controlled directly over the network.
   The receiver only allows one control connection, so Klikker lets go of it when idle and falls
   back to the receiver's web interface while another app holds it.
+- **Per-TV volume**: each TV can opt out of the receiver, and a Samsung TV that ignores the volume keys sent to
+  its HDMI box can be given its address, so volume and mute go straight to it over the network.
 - **Now playing**: poster or cover art, title and a seek bar for what is playing on the TV.
 - **Apps**: shortcuts shown as app icons, learned from each TV, opened through their own links.
 - **Typing**: use the phone's keyboard in TV text fields, with edits made on the TV followed back.

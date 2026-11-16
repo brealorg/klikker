@@ -25,6 +25,8 @@ message SavedTv {
   repeated SavedScene scenes = 10;
   // Inverted so TVs saved before this existed keep using the receiver. True for a TV the receiver is not connected to.
   bool receiver_disabled = 11;
+  // Address of a Samsung TV that volume and mute are sent to directly; empty to send them to the TV box.
+  string volume_host = 12;
 }
 
 // A way to set the TV up: turn it on, open an app, set the receiver's volume.
