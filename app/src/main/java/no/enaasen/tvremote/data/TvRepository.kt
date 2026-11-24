@@ -2,7 +2,9 @@ package no.enaasen.tvremote.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.datastore.core.DataStore
@@ -535,6 +537,40 @@ class TvRepository @Inject constructor(
         if (isNew) log.info(DiagnosticCategory.Connection, "Found ${AppCatalog.label(packageName)} ($packageName) on the TV")
     }
 
+    /**
+     * Keeps the Wi-Fi radio out of power saving while a TV is connected. Android
+     * only honours a low-latency lock while the app is in the foreground with the
+     * screen on, which is when delayed TV pings are most noticeable.
+     */
+    private val wifiLock: WifiManager.WifiLock? by lazy {
+        runCatching {
+            context.getSystemService(WifiManager::class.java)
+                .createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "tvremote:connection")
+                .apply { setReferenceCounted(false) }
+        }.getOrNull()
+    }
+
+    private fun WifiManager.WifiLock?.acquireQuietly() {
+        if (this != null && !isHeld) runCatching { acquire() }
+    }
+
+    private fun WifiManager.WifiLock?.releaseQuietly() {
+        if (this != null && isHeld) runCatching { release() }
+    }
+
+    /** Compact phone-side context for connection warnings: screen, Doze and Wi-Fi quality. */
+    private fun phoneState(): String = runCatching {
+        val power = context.getSystemService(PowerManager::class.java)
+        val wifi = context.getSystemService(WifiManager::class.java).connectionInfo
+        buildString {
+            append(if (power.isInteractive) "screen on" else "screen off")
+            if (power.isDeviceIdleMode) append(", doze")
+            if (power.isPowerSaveMode) append(", battery saver")
+            append(", wifi ${wifi.rssi} dBm ${wifi.linkSpeed} Mbps")
+            append(", lock ${if (wifiLock?.isHeld == true) "held" else "off"}")
+        }
+    }.getOrDefault("state unavailable")
+
     private suspend fun maintainConnection(saved: SavedTv) {
         val tv = saved.toTv()
         val address = "${saved.host}:${saved.port}"
@@ -553,8 +589,10 @@ class TvRepository @Inject constructor(
                     pinnedCertificateSha256 = saved.certificateSha256.toByteArray(),
                     deviceInfo = deviceInfo,
                     log = log,
+                    phoneState = ::phoneState,
                 ).use { session ->
                     activeSession = session
+                    wifiLock.acquireQuietly()
                     coroutineScope {
                         launch {
                             session.status.mapNotNull { it.currentAppPackage }.distinctUntilChanged().collect {
@@ -612,6 +650,7 @@ class TvRepository @Inject constructor(
                 // The TV may have a new DHCP address; saving it restarts the connection.
                 if (failures == RELOCATE_AFTER_FAILURES && relocate(saved)) return
             } finally {
+                wifiLock.releaseQuietly()
                 activeSession = null
                 if (connectedAt > 0L && !currentCoroutineContext().isActive) {
                     log.info(DiagnosticCategory.Connection, "Disconnected from ${tv.name}")

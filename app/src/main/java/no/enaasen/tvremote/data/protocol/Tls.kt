@@ -12,10 +12,11 @@ import javax.net.ssl.SSLSocket
 private const val CONNECT_TIMEOUT_MS = 3_000
 
 /**
- * The TV pings every ~5 s. Wi-Fi power saving on a sleeping phone can delay
- * delivery, so only this much silence counts as a dead link.
+ * The TV pings every ~5 s. Wi-Fi power saving or a stalled radio on the phone
+ * can hold delivery back for tens of seconds (silences of 25 s were logged),
+ * so only this much silence counts as a dead link.
  */
-internal const val READ_TIMEOUT_MS = 30_000
+internal const val READ_TIMEOUT_MS = 90_000
 
 /** Thrown when the TV does not recognise this app's certificate. */
 class PairingRequiredException(cause: Throwable? = null) : IOException(cause) {

@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -49,6 +50,8 @@ class RemoteSession private constructor(
     private val socket: SSLSocket,
     private val deviceInfo: RemoteDeviceInfo,
     private val log: DiagnosticLog,
+    /** Phone-side state (screen, Doze, Wi-Fi signal) attached to silence warnings. */
+    private val phoneState: () -> String,
 ) : Closeable {
 
     private val outbox = Channel<RemoteMessage>(Channel.UNLIMITED)
@@ -132,7 +135,21 @@ class RemoteSession private constructor(
             val output = socket.outputStream
             for (message in outbox) message.writeFramedTo(output)
         }
-        withContext(Dispatchers.IO) { readLoop() }
+        withContext(Dispatchers.IO) {
+            try {
+                readLoop()
+            } catch (e: IOException) {
+                if (isActive) {
+                    val silence = (SystemClock.elapsedRealtime() - lastMessageAt) / 1000
+                    log.warning(
+                        DiagnosticCategory.Connection,
+                        "Read failed ${silence} s after the last TV message (${phoneState()})",
+                        e,
+                    )
+                }
+                throw e
+            }
+        }
     }
 
     override fun close() {
@@ -178,10 +195,12 @@ class RemoteSession private constructor(
         outbox.trySend(message)
     }
 
+    @Volatile private var lastMessageAt = SystemClock.elapsedRealtime()
+
     private fun readLoop(): Nothing {
         val input = socket.inputStream
         var receivedAny = false
-        var lastMessageAt = SystemClock.elapsedRealtime()
+        lastMessageAt = SystemClock.elapsedRealtime()
         while (true) {
             // With TLS 1.3 the TV rejects an unknown client certificate only
             // after the handshake, so a failure before the first message
@@ -197,7 +216,7 @@ class RemoteSession private constructor(
             val now = SystemClock.elapsedRealtime()
             // The TV pings every ~5 s; a long gap explains later timeouts.
             if (now - lastMessageAt > SILENCE_WARNING_MS) {
-                log.warning(DiagnosticCategory.Connection, "TV was silent for ${(now - lastMessageAt) / 1000} s")
+                log.warning(DiagnosticCategory.Connection, "TV was silent for ${(now - lastMessageAt) / 1000} s (${phoneState()})")
             }
             lastMessageAt = now
             handle(message)
@@ -299,13 +318,14 @@ class RemoteSession private constructor(
             pinnedCertificateSha256: ByteArray,
             deviceInfo: RemoteDeviceInfo,
             log: DiagnosticLog,
+            phoneState: () -> String = { "" },
         ): RemoteSession = withContext(Dispatchers.IO) {
             val socket = try {
                 identity.sslContext(PinningTrustManager(pinnedCertificateSha256)).openSocket(host, port)
             } catch (e: SSLHandshakeException) {
                 throw PairingRequiredException(e)
             }
-            RemoteSession(socket, deviceInfo, log)
+            RemoteSession(socket, deviceInfo, log, phoneState)
         }
     }
 }
