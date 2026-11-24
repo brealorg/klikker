@@ -2,6 +2,10 @@ package no.enaasen.tvremote.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.PowerManager
@@ -23,6 +27,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -253,6 +260,44 @@ class TvRepository @Inject constructor(
         appVersion = "1.0.0"
     }
 
+    /**
+     * Whether the phone is on a network that can reach a TV's private address: Wi-Fi,
+     * Ethernet or a VPN. It flips back to true the moment such a network appears, so the
+     * connection is retried at once instead of at the next backoff. Switching between
+     * two such networks does not change it; the broken socket is retried by the loop.
+     */
+    private val localNetwork: StateFlow<Boolean> = callbackFlow {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        val networks = mutableSetOf<Network>()
+        fun publish() {
+            val available = synchronized(networks) { networks.isNotEmpty() }
+            trySend(available)
+        }
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                synchronized(networks) { networks += network }
+                publish()
+            }
+
+            override fun onLost(network: Network) {
+                synchronized(networks) { networks -= network }
+                publish()
+            }
+        }
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+            .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+            .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .build()
+        runCatching { connectivity.registerNetworkCallback(request, callback) }
+            .onFailure { trySend(true) } // Without the callback, behave as before: always try.
+        awaitClose { runCatching { connectivity.unregisterNetworkCallback(callback) } }
+    }
+        .distinctUntilChanged()
+        .onEach { log.info(DiagnosticCategory.Connection, if (it) "Local network available" else "No Wi-Fi, Ethernet or VPN; waiting before reconnecting") }
+        .stateIn(scope, SharingStarted.Eagerly, true)
+
     init {
         val keepConnected = ProcessLifecycleOwner.get().lifecycle.currentStateFlow
             .map { it.isAtLeast(Lifecycle.State.STARTED) }
@@ -275,19 +320,21 @@ class TvRepository @Inject constructor(
             val receiverHost = settings.map { it.receiverHost }.distinctUntilChanged()
             // A TV that isn't wired to the receiver must not have its volume keys sent there.
             val selectedUsesReceiver = dataStore.data.map { data -> data.selectedTv()?.receiverDisabled != true }.distinctUntilChanged()
-            combine(keepConnected, backgroundServiceRunning, receiverHost, selectedUsesReceiver) { foreground, service, host, usesReceiver ->
-                host.takeIf { (foreground || service) && usesReceiver && it.isNotBlank() }
+            combine(keepConnected, backgroundServiceRunning, receiverHost, selectedUsesReceiver, localNetwork) { foreground, service, host, usesReceiver, lan ->
+                host.takeIf { (foreground || service) && usesReceiver && lan && it.isNotBlank() }
             }.distinctUntilChanged().collectLatest { host ->
                 if (host != null) receiver.maintain(host)
             }
         }
         scope.launch {
-            combine(keepConnected, backgroundServiceRunning, selectedTv, reconnectRequests) { foreground, service, tv, generation ->
-                Target(tv, foreground || service, generation)
+            combine(keepConnected, backgroundServiceRunning, selectedTv, reconnectRequests, localNetwork) { foreground, service, tv, generation, lan ->
+                Target(tv, foreground || service, generation, lan)
             }.distinctUntilChanged().collectLatest { target ->
                 when {
                     target.tv == null -> _connectionState.value = ConnectionState.NoTv
                     !target.foreground -> _connectionState.value = ConnectionState.Connecting(target.tv.toTv())
+                    // The TV has a private address; over mobile data every attempt would just time out.
+                    !target.lan -> _connectionState.value = ConnectionState.Unreachable(target.tv.toTv())
                     else -> maintainConnection(target.tv)
                 }
             }
@@ -558,6 +605,17 @@ class TvRepository @Inject constructor(
         if (this != null && isHeld) runCatching { release() }
     }
 
+    private fun activeTransports(): String {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        val caps = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return "none"
+        return listOf(
+            NetworkCapabilities.TRANSPORT_WIFI to "wifi",
+            NetworkCapabilities.TRANSPORT_CELLULAR to "mobile",
+            NetworkCapabilities.TRANSPORT_ETHERNET to "ethernet",
+            NetworkCapabilities.TRANSPORT_VPN to "vpn",
+        ).filter { caps.hasTransport(it.first) }.joinToString("+") { it.second }.ifEmpty { "other" }
+    }
+
     /** Compact phone-side context for connection warnings: screen, Doze and Wi-Fi quality. */
     private fun phoneState(): String = runCatching {
         val power = context.getSystemService(PowerManager::class.java)
@@ -566,6 +624,7 @@ class TvRepository @Inject constructor(
             append(if (power.isInteractive) "screen on" else "screen off")
             if (power.isDeviceIdleMode) append(", doze")
             if (power.isPowerSaveMode) append(", battery saver")
+            append(", network ${activeTransports()}")
             append(", wifi ${wifi.rssi} dBm ${wifi.linkSpeed} Mbps")
             append(", lock ${if (wifiLock?.isHeld == true) "held" else "off"}")
         }
@@ -672,7 +731,7 @@ class TvRepository @Inject constructor(
         return true
     }
 
-    private data class Target(val tv: SavedTv?, val foreground: Boolean, val generation: Int)
+    private data class Target(val tv: SavedTv?, val foreground: Boolean, val generation: Int, val lan: Boolean)
 
     private companion object {
         const val BACKGROUND_GRACE_MS = 30_000L
