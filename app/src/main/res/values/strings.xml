@@ -120,8 +120,8 @@
     <string name="settings_volume_haptics_full">Full</string>
     <string name="settings_volume_keys">Volume buttons control the TV</string>
     <string name="settings_volume_keys_description">While the app is open and connected</string>
-    <string name="settings_keep_connected">Stay connected in the background</string>
-    <string name="settings_keep_connected_description">The remote is ready instantly, and playback and volume controls are available from the notification</string>
+    <string name="settings_keep_connected">Show controls in the notification</string>
+    <string name="settings_keep_connected_description">Playback and volume controls in the notification while the app is open and for a short while after. The TV is disconnected when the screen is off</string>
 
     <!-- Background connection notification -->
     <string name="notification_channel_connection">TV connection</string>

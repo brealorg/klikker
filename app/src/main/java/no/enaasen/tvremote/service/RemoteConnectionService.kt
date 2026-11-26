@@ -32,6 +32,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import no.enaasen.tvremote.MainActivity
 import no.enaasen.tvremote.R
 import no.enaasen.tvremote.data.TvRepository
@@ -46,8 +47,11 @@ import no.enaasen.tvremote.data.model.tv
 import no.enaasen.tvremote.data.nowplaying.forApp
 
 /**
- * Keeps the selected TV connected while the app is closed, so the remote is
- * ready the moment it's opened. Its notification doubles as a quick remote:
+ * Shows a quick remote in the notification shade while the app is open and for a
+ * short while after it is left. It runs only as long as the repository holds the
+ * TV connection ([TvRepository.appActive]); with the screen off, or the app long
+ * gone, there is no service and nothing keeps the Wi-Fi radio awake. The app
+ * connects again on its own, from the saved address, when it is opened. The notification doubles as a quick remote:
  * when the TV is playing something it becomes a media notification, with the
  * title, progress and playback controls, backed by a media session so the
  * controls also show in the quick settings and on the lock screen.
@@ -97,7 +101,6 @@ class RemoteConnectionService : Service() {
             buildNotification(Content(repository.connectionState.value, emptyList(), media = null, appLabel = null)),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
         )
-        repository.setBackgroundServiceRunning(true)
         log.info(DiagnosticCategory.Service, "Background connection started")
 
         scope.launch {
@@ -115,7 +118,10 @@ class RemoteConnectionService : Service() {
             }
         }
         scope.launch {
-            repository.backgroundConnectionWanted.first { wanted -> !wanted }
+            // A start that finds the app already gone (a stale notification action) ends at once.
+            withTimeoutOrNull(START_WAIT_MS) { repository.appActive.first { it } }
+            combine(repository.appActive, repository.backgroundConnectionWanted) { active, wanted -> active && wanted }
+                .first { keep -> !keep }
             stopSelf()
         }
     }
@@ -130,7 +136,6 @@ class RemoteConnectionService : Service() {
     }
 
     override fun onDestroy() {
-        repository.setBackgroundServiceRunning(false)
         log.info(DiagnosticCategory.Service, "Background connection stopped")
         scope.cancel()
         session.release()
@@ -329,6 +334,7 @@ class RemoteConnectionService : Service() {
         private const val ACTION_VOLUME_DOWN = "volume_down"
         private const val ACTION_VOLUME_UP = "volume_up"
         private const val POSITION_DRIFT_MS = 2_000L
+        private const val START_WAIT_MS = 5_000L
         private const val ICON_SIZE_PX = 192
 
         /** Must be called while the app is in the foreground. */

@@ -91,8 +91,10 @@ import no.enaasen.tvremote.proto.userdata.seenApp
 
 /**
  * Single source of truth for saved TVs, shortcuts and the live connection.
- * The selected TV is kept connected while the app is in the foreground (plus
- * a short grace period, so switching apps briefly doesn't drop the link).
+ * The selected TV is kept connected only while the app is in the foreground (plus
+ * a short grace period, so switching apps briefly doesn't drop the link), or while
+ * something short-lived asks for it with [requestConnection]. With the screen off
+ * nothing is held open: an idle TLS connection keeps waking the Wi-Fi radio.
  * A configured receiver is kept connected alongside it and gets volume keys.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -137,7 +139,7 @@ class TvRepository @Inject constructor(
     /** Read from storage, as [settings] starts out with defaults until the stored values are loaded. */
     suspend fun updateCheckEnabled(): Boolean = !dataStore.data.first().settings.updateCheckDisabled
 
-    /** True when the TV should stay connected in the background (setting on and a TV saved). */
+    /** True when the TV should get a connection notification with quick controls (setting on and a TV saved). */
     val backgroundConnectionWanted: Flow<Boolean> = dataStore.data
         .map { it.tvsCount > 0 && !it.settings.backgroundConnectionDisabled }
         .distinctUntilChanged()
@@ -169,7 +171,8 @@ class TvRepository @Inject constructor(
                         failures = 0
                         certificateRetries = 0
                         emit(coroutineScope { fetched.sessions.map { async { withArt(host, secret, it) } }.awaitAll() })
-                        delay(NOW_PLAYING_POLL_MS)
+                        // Each look is a fresh TLS connection: only worth the radio time while someone watches.
+                        delay(if (appVisible.value) NOW_PLAYING_POLL_MS else NOW_PLAYING_BACKGROUND_POLL_MS)
                     }
                     CompanionClient.Fetched.Unauthorized -> {
                         emit(emptyList())
@@ -239,11 +242,46 @@ class TvRepository @Inject constructor(
 
     private fun newCompanionSecret() = ByteArray(16).also(SecureRandom()::nextBytes).joinToString("") { "%02x".format(it) }
 
-    /** Set by [no.enaasen.tvremote.service.RemoteConnectionService] while it runs. */
-    private val backgroundServiceRunning = MutableStateFlow(false)
-
     @Volatile
     private var activeSession: RemoteSession? = null
+
+    private fun isStarted() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+
+    /** Whether the app is on screen right now. */
+    private val appVisible: StateFlow<Boolean> = ProcessLifecycleOwner.get().lifecycle.currentStateFlow
+        .map { it.isAtLeast(Lifecycle.State.STARTED) }
+        .distinctUntilChanged()
+        .stateIn(scope, SharingStarted.Eagerly, isStarted())
+
+    /**
+     * Whether the app is on screen, or left it less than [BACKGROUND_GRACE_MS] ago. The TV
+     * connection and the notification service live exactly as long as this is true.
+     */
+    val appActive: StateFlow<Boolean> = appVisible
+        .transformLatest { visible ->
+            if (!visible) delay(BACKGROUND_GRACE_MS)
+            emit(visible)
+        }
+        .stateIn(scope, SharingStarted.Eagerly, isStarted())
+
+    private val leaseUntil = MutableStateFlow(0L)
+
+    /** True for a while after [requestConnection], so a quick settings tile can connect without the app open. */
+    private val leased: Flow<Boolean> = leaseUntil
+        .transformLatest { until ->
+            val left = until - SystemClock.elapsedRealtime()
+            if (left > 0) {
+                emit(true)
+                delay(left)
+            }
+            emit(false)
+        }
+        .distinctUntilChanged()
+
+    /** Connects to the TV for the next [LEASE_MS] without the app open; the connection is dropped again after. */
+    fun requestConnection() {
+        leaseUntil.value = SystemClock.elapsedRealtime() + LEASE_MS
+    }
 
     /** The selected TV's Samsung address for volume; blank when its box gets the volume keys. */
     @Volatile
@@ -299,13 +337,7 @@ class TvRepository @Inject constructor(
         .stateIn(scope, SharingStarted.Eagerly, true)
 
     init {
-        val keepConnected = ProcessLifecycleOwner.get().lifecycle.currentStateFlow
-            .map { it.isAtLeast(Lifecycle.State.STARTED) }
-            .distinctUntilChanged()
-            .transformLatest { foreground ->
-                if (!foreground) delay(BACKGROUND_GRACE_MS)
-                emit(foreground)
-            }
+        val keepConnected = combine(appActive, leased) { active, lease -> active || lease }.distinctUntilChanged()
         val selectedTv = dataStore.data
             .map { it.selectedTv() }
             .distinctUntilChanged { old, new -> old?.withoutApps() == new?.withoutApps() }
@@ -320,15 +352,15 @@ class TvRepository @Inject constructor(
             val receiverHost = settings.map { it.receiverHost }.distinctUntilChanged()
             // A TV that isn't wired to the receiver must not have its volume keys sent there.
             val selectedUsesReceiver = dataStore.data.map { data -> data.selectedTv()?.receiverDisabled != true }.distinctUntilChanged()
-            combine(keepConnected, backgroundServiceRunning, receiverHost, selectedUsesReceiver, localNetwork) { foreground, service, host, usesReceiver, lan ->
-                host.takeIf { (foreground || service) && usesReceiver && lan && it.isNotBlank() }
+            combine(keepConnected, receiverHost, selectedUsesReceiver, localNetwork) { wanted, host, usesReceiver, lan ->
+                host.takeIf { wanted && usesReceiver && lan && it.isNotBlank() }
             }.distinctUntilChanged().collectLatest { host ->
                 if (host != null) receiver.maintain(host)
             }
         }
         scope.launch {
-            combine(keepConnected, backgroundServiceRunning, selectedTv, reconnectRequests, localNetwork) { foreground, service, tv, generation, lan ->
-                Target(tv, foreground || service, generation, lan)
+            combine(keepConnected, selectedTv, reconnectRequests, localNetwork) { wanted, tv, generation, lan ->
+                Target(tv, wanted, generation, lan)
             }.distinctUntilChanged().collectLatest { target ->
                 when {
                     target.tv == null -> _connectionState.value = ConnectionState.NoTv
@@ -399,10 +431,6 @@ class TvRepository @Inject constructor(
             detail = "${launch.link} (${launch.packageName ?: "any app"})",
         )
         session?.launchAppLink(launch.link, launch.packageName)
-    }
-
-    fun setBackgroundServiceRunning(running: Boolean) {
-        backgroundServiceRunning.value = running
     }
 
     fun reconnect() {
@@ -735,6 +763,8 @@ class TvRepository @Inject constructor(
 
     private companion object {
         const val BACKGROUND_GRACE_MS = 30_000L
+        const val LEASE_MS = 45_000L
+        const val NOW_PLAYING_BACKGROUND_POLL_MS = 15_000L
         const val INITIAL_BACKOFF_MS = 500L
         const val PAIRING_FAILURES_BEFORE_PROMPT = 2
         const val MAX_BACKOFF_MS = 8_000L

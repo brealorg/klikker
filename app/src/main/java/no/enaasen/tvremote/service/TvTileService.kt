@@ -27,6 +27,8 @@ abstract class TvTileService : TileService() {
     private var listening: Job? = null
 
     override fun onStartListening() {
+        // The TV isn't held connected in the background; the open panel connects it for a while.
+        repository.requestConnection()
         listening = scope.launch {
             combine(repository.connectionState, repository.receiverStatus) { connection, receiver ->
                 (connection as? ConnectionState.Connected)?.status to receiver
